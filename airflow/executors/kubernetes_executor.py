@@ -23,13 +23,14 @@ KubernetesExecutor
 """
 from __future__ import annotations
 
+import concurrent.futures
 import functools
 import json
 import multiprocessing
 import time
 from datetime import timedelta
 from queue import Empty, Queue
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple, List
 
 import requests
 from kubernetes import client, watch
@@ -253,6 +254,7 @@ class AirflowKubernetesScheduler(LoggingMixin):
         self.watcher_queue = self._manager.Queue()
         self.scheduler_job_id = scheduler_job_id
         self.kube_watcher = self._make_kube_watcher()
+        self.executor_pool = concurrent.futures.ThreadPoolExecutor()
 
     def run_pod_async(self, pod: k8s.V1Pod, command, key, custom_annotations, **kwargs):
         """Runs POD asynchronously"""
@@ -262,21 +264,20 @@ class AirflowKubernetesScheduler(LoggingMixin):
         json_pod = json.dumps(sanitized_pod, indent=2)
 
         self.log.info('Pod Creation Request: \n%s', json_pod)
-        self.log.info(f"Preparing request with {command}")
-        r = requests.post("http://airflow-worker-0.airflow.192.168.1.240.sslip.io/run_task_instance", json={"args": command})
-        # without write to watcher_queue, the task gets clearen up as a zombie
-        self.watcher_queue.put(("airflow-worker-0", "airflow", None, custom_annotations, 0))
-        self.log.info(f"Response: {r.status_code}, {r.text}")
-        return
-        try:
-            resp = self.kube_client.create_namespaced_pod(
-                body=sanitized_pod, namespace=pod.metadata.namespace, **kwargs
-            )
-            self.log.debug('Pod Creation Response: %s', resp)
-        except Exception as e:
-            self.log.exception('Exception when attempting to create Namespaced Pod: %s', json_pod)
-            raise e
-        return resp
+
+        def task(endpoint: str, args: List[str], watcher_queue, log):
+            log.info(f"Sending POST request with arguments {args}")
+            r = requests.post(endpoint, json={"args": args})
+            log.info(f'Task run {custom_annotations["run_id"]} done with status code {r.status_code}. Data: {r.text}')
+            if r.status_code == 200:
+                # state 'None' indicates success in this context
+                watcher_queue.put(("airflow-worker-0", "airflow", None, custom_annotations, 0))
+            else:
+                watcher_queue.put(("airflow-worker-0", "airflow", State.FAILED, custom_annotations, 0))
+            # TODO if we want direct access to task output, this will probably be the right place to receive and return it
+
+        self.executor_pool.submit(task, "http://airflow-worker-0.airflow.192.168.1.240.sslip.io/run_task_instance", command, self.watcher_queue, self.log)
+        self.log.info(f'Submitted {custom_annotations["run_id"]} to executor pool')
 
     def _make_kube_watcher(self) -> KubernetesJobWatcher:
         resource_version = ResourceVersion().resource_version
