@@ -263,7 +263,7 @@ class AirflowKubernetesScheduler(LoggingMixin):
 
         self.log.info('Pod Creation Request: \n%s', json_pod)
         self.log.info(f"Preparing request with {command}")
-        r = requests.post("http://airflow-worker-0.airflow.192.168.1.240.sslip.io/run_task_instance", json={"args": ["/entrypoint"] + command})
+        r = requests.post("http://airflow-worker-0.airflow.192.168.1.240.sslip.io/run_task_instance", json={"args": command})
         # without write to watcher_queue, the task gets clearen up as a zombie
         self.watcher_queue.put(("airflow-worker-0", "airflow", None, custom_annotations, 0))
         self.log.info(f"Response: {r.status_code}, {r.text}")
