@@ -32,6 +32,7 @@ from datetime import timedelta
 from queue import Empty, Queue
 from typing import Any, Dict, Optional, Sequence, Tuple, List
 
+import kubernetes.client
 import requests
 from kubernetes import client, watch
 from kubernetes.client import Configuration, models as k8s
@@ -263,10 +264,25 @@ class AirflowKubernetesScheduler(LoggingMixin):
         sanitized_pod = self.kube_client.api_client.sanitize_for_serialization(pod)
         json_pod = json.dumps(sanitized_pod, indent=2)
 
+        # get knative services and extract endpoint url
+        kubernetes.config.load_config()
+        kservices = kubernetes.client.CustomObjectsApi().list_namespaced_custom_object(group='serving.knative.dev', version='v1', namespace='airflow', plural='services')
+        self.log.debug(f'kservices: {kservices}')
+        num_services = len(kservices['items'])
+        if num_services == 0:
+            self.log.error('No knative worker available')
+            return
+        else:
+            if num_services > 1:
+                self.log.warning(f'Expected to find exactly one knative service in airflow workspace, found {num_services}. Using the first returned service.')
+            worker_service_url = kservices['items'][0]['status']['url']
+            endpoint = worker_service_url + '/run_task_instance'
+            self.log.info(f'Knative service airflow worker endpoint: {endpoint}')
+
         self.log.info('Pod Creation Request: \n%s', json_pod)
 
         def task(endpoint: str, args: List[str], watcher_queue, log):
-            log.info(f"Sending POST request with arguments {args}")
+            log.info(f"Sending POST request to {endpoint} with arguments {args}")
             r = requests.post(endpoint, json={"args": args})
             log.info(f'Task run {custom_annotations["run_id"]} done with status code {r.status_code}. Data: {r.text}')
             if r.status_code == 200:
@@ -276,7 +292,7 @@ class AirflowKubernetesScheduler(LoggingMixin):
                 watcher_queue.put(("airflow-worker-0", "airflow", State.FAILED, custom_annotations, 0))
             # TODO if we want direct access to task output, this will probably be the right place to receive and return it
 
-        self.executor_pool.submit(task, "http://airflow-worker-0.airflow.192.168.1.240.sslip.io/run_task_instance", command, self.watcher_queue, self.log)
+        self.executor_pool.submit(task, endpoint, command, self.watcher_queue, self.log)
         self.log.info(f'Submitted {custom_annotations["run_id"]} to executor pool')
 
     def _make_kube_watcher(self) -> KubernetesJobWatcher:
