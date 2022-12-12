@@ -256,6 +256,41 @@ class AirflowKubernetesScheduler(LoggingMixin):
         self.scheduler_job_id = scheduler_job_id
         self.kube_watcher = self._make_kube_watcher()
         self.executor_pool = concurrent.futures.ThreadPoolExecutor()
+        self._kn_workers: Dict[str, str] | None = None  # map dag_id to knative worker urls
+
+        # load kn service urls asynchronously
+        def retrieve_kn_service_urls():
+            while True:
+                kn = subprocess.run(('kn', 'service', 'list', '-n', 'airflow', '-o', 'json'), stdout=subprocess.PIPE)
+                if kn.returncode != 0:
+                    self.log.warning(f'kn service list exited with code {kn.returncode}, retrying in 1 second')
+                    time.sleep(1)
+                    continue
+
+                self.log.info(f'kn service list returned')
+                knative_services = json.loads(kn.stdout)
+                self.log.debug(f'knative_services: {knative_services}')
+
+                kn_workers = {}
+                for service in knative_services['items']:
+                    dag_id = service['metadata']['annotations']['dag_id']
+                    worker_url = service['status']['url']
+                    kn_workers[dag_id] = worker_url
+                return kn_workers
+
+        self._worker_service_urls_future = self.executor_pool.submit(retrieve_kn_service_urls)
+
+    def get_worker_service_url(self, dag_id: str):
+        # when this method is called for the first time the worker service urls should already have been
+        # loaded asynchronously, so we just retrieve and store them
+        if self._kn_workers is None:
+            try:
+                self._kn_workers = self._worker_service_urls_future.result(timeout=20)
+            except TimeoutError:
+                self.log.error(f'Timeout while waiting for list of knative services')
+                return None
+
+        return self._kn_workers.get(dag_id)
 
     def run_pod_async(self, pod: k8s.V1Pod, command, key, custom_annotations, **kwargs):
         """Runs POD asynchronously"""
@@ -264,23 +299,13 @@ class AirflowKubernetesScheduler(LoggingMixin):
         sanitized_pod = self.kube_client.api_client.sanitize_for_serialization(pod)
         json_pod = json.dumps(sanitized_pod, indent=2)
 
-        # get knative services and extract endpoint url
-        kn = subprocess.run(('kn', 'service', 'list', '-n', 'airflow', '-o', 'json'), stdout=subprocess.PIPE)
-        if kn.returncode != 0:
-            self.log.error(f'kn service list exited with code {kn.returncode}')
+        worker_service_url = self.get_worker_service_url(custom_annotations['dag_id'])
+        if worker_service_url is None:
+            self.log.error(f'No knative worker available for dag {custom_annotations["dag_id"]}')
             return
-        knative_services = json.loads(kn.stdout)
-        self.log.debug(f'knative_services: {knative_services}')
-        num_services = len(knative_services['items'])
-        if num_services == 0:
-            self.log.error('No knative worker available')
-            return
-        else:
-            if num_services > 1:
-                self.log.warning(f'Expected to find exactly one knative service in airflow workspace, found {num_services}. Using the first returned service.')
-            worker_service_url = knative_services['items'][0]['status']['url']
-            endpoint = worker_service_url + '/run_task_instance'
-            self.log.info(f'Knative service airflow worker endpoint: {endpoint}')
+
+        endpoint = worker_service_url + '/run_task_instance'
+        self.log.info(f'Knative service airflow worker endpoint: {endpoint}')
 
         self.log.info('Pod Creation Request: \n%s', json_pod)
 

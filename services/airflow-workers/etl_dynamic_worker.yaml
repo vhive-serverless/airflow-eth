@@ -2,7 +2,9 @@ apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
   namespace: airflow
-  name: airflow-worker
+  name: airflow-etl-worker-dynamic
+  annotations:
+    dag_id: etl_example_dynamic
 spec:
   template:
     spec:
