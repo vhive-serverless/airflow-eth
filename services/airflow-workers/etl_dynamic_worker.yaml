@@ -8,8 +8,10 @@ metadata:
 spec:
   template:
     spec:
+      imagePullSecrets:
+        - name: regcred
       containers:
-        - image: "jonamuen/serverless:airflow-worker-latest"
+        - image: "ghcr.io/jonamuen/airflow-worker:latest"
           imagePullPolicy: Always
           ports:
             - name: http1
