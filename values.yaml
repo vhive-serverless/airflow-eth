@@ -1764,7 +1764,7 @@ podTemplate: ~
 dags:
   persistence:
     # Enable persistent volume for storing dags
-    enabled: true
+    enabled: false
     # Volume size for dags
     size: 1Gi
     # If using a custom storageClass, pass name here
@@ -1776,17 +1776,12 @@ dags:
     ## optional subpath for dag volume mount
     subPath:
   gitSync:
-    enabled: true
+    enabled: false
 
     # git repo clone url
     # ssh examples ssh://git@github.com/apache/airflow.git
     # git@github.com:apache/airflow.git
     # https example: https://github.com/apache/airflow.git
-    # repo: git@gitlab.ethz.ch:jonamuen/airflow-dags.git
-    repo: https://project_36748_bot:Gm9zRv967KtS8h2bJvKH@gitlab.ethz.ch/jonamuen/airflow-dags.git
-    branch: main
-    rev: HEAD
-    depth: 1
     # the number of consecutive failures allowed before aborting
     maxFailures: 0
     # subpath within the repo where dags are located
