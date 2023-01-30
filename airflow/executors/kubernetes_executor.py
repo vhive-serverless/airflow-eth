@@ -259,26 +259,26 @@ class AirflowKubernetesScheduler(LoggingMixin):
         self._kn_workers: Dict[str, str] | None = None  # map dag_id to knative worker urls
 
         # load kn service urls asynchronously
-        def retrieve_kn_service_urls():
-            while True:
-                kn = subprocess.run(('kn', 'service', 'list', '-n', 'airflow', '-o', 'json'), stdout=subprocess.PIPE)
-                if kn.returncode != 0:
-                    self.log.warning(f'kn service list exited with code {kn.returncode}, retrying in 1 second')
-                    time.sleep(1)
-                    continue
+        self._worker_service_urls_future = self.executor_pool.submit(self._retrieve_kn_service_urls)
 
-                self.log.info(f'kn service list returned')
-                knative_services = json.loads(kn.stdout)
-                self.log.debug(f'knative_services: {knative_services}')
+    def _retrieve_kn_service_urls(self):
+        while True:
+            kn = subprocess.run(('kn', 'service', 'list', '-n', 'airflow', '-o', 'json'), stdout=subprocess.PIPE)
+            if kn.returncode != 0:
+                self.log.warning(f'kn service list exited with code {kn.returncode}, retrying in 1 second')
+                time.sleep(1)
+                continue
 
-                kn_workers = {}
-                for service in knative_services['items']:
-                    dag_id = service['metadata']['annotations']['dag_id']
-                    worker_url = service['status']['url']
-                    kn_workers[dag_id] = worker_url
-                return kn_workers
+            self.log.info(f'kn service list returned')
+            knative_services = json.loads(kn.stdout)
+            self.log.debug(f'knative_services: {knative_services}')
 
-        self._worker_service_urls_future = self.executor_pool.submit(retrieve_kn_service_urls)
+            kn_workers = {}
+            for service in knative_services['items']:
+                dag_id = service['metadata']['annotations']['dag_id']
+                worker_url = service['status']['url']
+                kn_workers[dag_id] = worker_url
+            return kn_workers
 
     def get_worker_service_url(self, dag_id: str):
         # when this method is called for the first time the worker service urls should already have been
@@ -289,6 +289,10 @@ class AirflowKubernetesScheduler(LoggingMixin):
             except TimeoutError:
                 self.log.error(f'Timeout while waiting for list of knative services')
                 return None
+        if dag_id not in self._kn_workers:
+            # maybe worker for this dag was not yet available when we last checked, so try again
+            self._worker_service_urls_future = self.executor_pool.submit(self._retrieve_kn_service_urls)
+            self._kn_workers = self._worker_service_urls_future.result(timeout=20)
 
         return self._kn_workers.get(dag_id)
 
