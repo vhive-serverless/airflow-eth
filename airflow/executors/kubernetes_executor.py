@@ -23,6 +23,7 @@ KubernetesExecutor
 """
 from __future__ import annotations
 
+import collections
 import concurrent.futures
 import functools
 import json
@@ -232,6 +233,8 @@ class KubernetesJobWatcher(multiprocessing.Process, LoggingMixin):
             )
 
 
+TaskExecutionKey = collections.namedtuple("TaskExecutionKey", ("task_id", "dag_id", "run_id"))
+
 class AirflowKubernetesScheduler(LoggingMixin):
     """Airflow Scheduler for Kubernetes"""
 
@@ -260,6 +263,9 @@ class AirflowKubernetesScheduler(LoggingMixin):
 
         # load kn service urls asynchronously
         self._worker_service_urls_future = self.executor_pool.submit(self._retrieve_kn_service_urls)
+
+        self.task_dependencies: Dict[TaskExecutionKey, List[TaskExecutionKey]] = collections.defaultdict(lambda: [])
+        self.xcoms: Dict[TaskExecutionKey, Any] = {}
 
     def _retrieve_kn_service_urls(self):
         while True:
@@ -313,19 +319,43 @@ class AirflowKubernetesScheduler(LoggingMixin):
 
         self.log.info('Pod Creation Request: \n%s', json_pod)
 
+        current_task_id = custom_annotations["task_id"]
+        run_id = custom_annotations["run_id"]
+        dag_id = custom_annotations["dag_id"]
+        current_task_execution_key = TaskExecutionKey(current_task_id, dag_id, run_id)
+
         def task(endpoint: str, args: List[str], watcher_queue, log):
-            log.info(f"Sending POST request to {endpoint} with arguments {args}")
-            r = requests.post(endpoint, json={"args": args})
-            log.info(f'Task run {custom_annotations["run_id"]} done with status code {r.status_code}. Data: {r.text}')
-            if r.status_code == 200:
-                # state 'None' indicates success in this context
-                watcher_queue.put(("airflow-worker-0", "airflow", None, custom_annotations, 0))
-            else:
+            # collect xcom values from upstream tasks
+            try:
+                xcoms = []
+                for dep in self.task_dependencies[current_task_execution_key]:
+                    try:
+                        xcoms.extend(self.xcoms[dep])
+                    except KeyError:
+                        self.log.warning(f"Did not find an xcom (return) value for {dep}")
+
+                r = requests.post(endpoint, json={"args": args, "xcoms": xcoms})
+                log.info(f"Sending POST request to {endpoint} with arguments {args} and xcoms {xcoms}")
+                log.info(f'Task run {custom_annotations["run_id"]} done with status code {r.status_code}. Data: {r.json()}')
+                data = r.json()
+                # update dependency graph
+                for task_id in data["downstream_task_ids"]:
+                    self.task_dependencies[TaskExecutionKey(task_id, dag_id, run_id)].append(current_task_execution_key)
+                self.log.info(f'Task dependencies: {self.task_dependencies}')
+                # store xcom values
+                self.xcoms[current_task_execution_key] = data["xcoms"]
+
+                if r.status_code == 200:
+                    # state 'None' indicates success in this context
+                    watcher_queue.put(("airflow-worker-0", "airflow", None, custom_annotations, 0))
+                else:
+                    watcher_queue.put(("airflow-worker-0", "airflow", State.FAILED, custom_annotations, 0))
+            except Exception as e:
+                self.log.error(e)
                 watcher_queue.put(("airflow-worker-0", "airflow", State.FAILED, custom_annotations, 0))
-            # TODO if we want direct access to task output, this will probably be the right place to receive and return it
 
         self.executor_pool.submit(task, endpoint, command, self.watcher_queue, self.log)
-        self.log.info(f'Submitted {custom_annotations["run_id"]} to executor pool')
+        self.log.info(f'Submitted {current_task_execution_key} to executor pool')
 
     def _make_kube_watcher(self) -> KubernetesJobWatcher:
         resource_version = ResourceVersion().resource_version

@@ -20,6 +20,7 @@ from __future__ import annotations
 import collections.abc
 import contextlib
 import hashlib
+import json
 import logging
 import math
 import operator
@@ -1661,6 +1662,7 @@ class TaskInstance(Base, LoggingMixin):
                 task_to_execute.on_kill()
                 raise
         else:
+            logging.info(f"Context: {context}")
             result = execute_callable(context=context)
         with create_session() as session:
             if task_to_execute.do_xcom_push:
@@ -2375,6 +2377,26 @@ class TaskInstance(Base, LoggingMixin):
                 message = "Passing 'execution_date' to 'TaskInstance.xcom_push()' is deprecated."
                 warnings.warn(message, RemovedInAirflow3Warning, stacklevel=3)
 
+        serialized_value = XCom.serialize_value(
+            key=key,
+            value=value,
+            task_id=self.task_id,
+            dag_id=self.dag_id,
+            run_id=self.run_id,
+            map_index=self.map_index,
+        )
+        output = json.dumps({
+            "key": key,
+            "task_id": self.task_id,
+            "dag_id": self.dag_id,
+            "run_id": self.run_id,
+            "map_index": self.map_index,
+            "value": serialized_value.decode('UTF-8'),
+        })
+        # write xcom data to file for flask to pick up
+        with open('/home/airflow/output', 'a') as f:
+            f.write(output + "\n")
+
         XCom.set(
             key=key,
             value=value,
@@ -2384,6 +2406,7 @@ class TaskInstance(Base, LoggingMixin):
             map_index=self.map_index,
             session=session,
         )
+        self.log.info(f"xcom_push: {key}, {value}, {self.task_id}, {self.run_id}, {self.map_index}")
 
     @provide_session
     def xcom_pull(
@@ -2427,41 +2450,22 @@ class TaskInstance(Base, LoggingMixin):
         a non-str iterable), a list of matching XComs is returned. Elements in
         the list is ordered by item ordering in ``task_id`` and ``map_index``.
         """
-        if dag_id is None:
-            dag_id = self.dag_id
+        self.log.info(f"xcom_pull: {key}, {self.run_id}, {dag_id}, {task_ids}, {map_indexes}")
+        # load xcom data from file provided by flask
+        with open(f"/home/airflow/input") as f:
+            data = json.load(f)
+        logging.info(f'xcom_data: {data}')
 
-        query = XCom.get_many(
-            key=key,
-            run_id=self.run_id,
-            dag_ids=dag_id,
-            task_ids=task_ids,
-            map_indexes=map_indexes,
-            include_prior_dates=include_prior_dates,
-            session=session,
-        )
-
-        # NOTE: Since we're only fetching the value field and not the whole
-        # class, the @recreate annotation does not kick in. Therefore we need to
-        # call XCom.deserialize_value() manually.
-
-        # We are only pulling one single task.
-        if (task_ids is None or isinstance(task_ids, str)) and not isinstance(map_indexes, Iterable):
-            first = query.with_entities(
-                XCom.run_id, XCom.task_id, XCom.dag_id, XCom.map_index, XCom.value
-            ).first()
-            if first is None:  # No matching XCom at all.
-                return default
-            if map_indexes is not None or first.map_index < 0:
-                return XCom.deserialize_value(first)
-
-            return _LazyXComAccess.build_from_single_xcom(first, query)
-
-        # At this point either task_ids or map_indexes is explicitly multi-value.
-
-        results = (
-            (r.task_id, r.map_index, XCom.deserialize_value(r))
-            for r in query.with_entities(XCom.task_id, XCom.map_index, XCom.value)
-        )
+        # filter xcoms
+        if isinstance(task_ids, str):
+            filtered = tuple(xcom for xcom in data if xcom["key"] == key and xcom["task_id"] == task_ids)
+        else:
+            filtered = tuple(xcom for xcom in data if xcom["key"] == key and xcom["task_id"] in task_ids)
+        if len(filtered) == 0:
+            return default
+        if map_indexes is None:
+            return json.loads(filtered[0]["value"])
+        results = tuple((xcom["task_id"], xcom["map_index"], json.loads(xcom["value"])) for xcom in filtered if xcom["map_index"] in map_indexes)
 
         if task_ids is None:
             task_id_pos: dict[str, int] = defaultdict(int)
