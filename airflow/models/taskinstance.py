@@ -25,6 +25,7 @@ import logging
 import math
 import operator
 import os
+import pathlib
 import signal
 import warnings
 from collections import defaultdict
@@ -2394,7 +2395,8 @@ class TaskInstance(Base, LoggingMixin):
             "value": serialized_value.decode('UTF-8'),
         })
         # write xcom data to file for flask to pick up
-        with open('/home/airflow/output', 'a') as f:
+        p = pathlib.Path('/home/airflow') / self.dag_id / self.task_id / self.run_id / str(self.map_index) / "output"
+        with open(p, 'a') as f:
             f.write(output + "\n")
 
         XCom.set(
@@ -2451,41 +2453,39 @@ class TaskInstance(Base, LoggingMixin):
         the list is ordered by item ordering in ``task_id`` and ``map_index``.
         """
         self.log.info(f"xcom_pull: {key}, {self.run_id}, {dag_id}, {task_ids}, {map_indexes}")
+        if not isinstance(task_ids, str):
+            raise ValueError(f'xcom_pull: task_ids should be of type str')
+
+        if dag_id is None:
+            dag_id = self.dag_id
+
         # load xcom data from file provided by flask
-        with open(f"/home/airflow/input") as f:
+        # filter on map_indexes, task_id and run_id
+        base_path = pathlib.Path('/home/airflow') / self.dag_id / self.task_id / self.run_id / str(self.map_index)
+        with open(base_path / "input") as f:
             data = json.load(f)
         logging.info(f'xcom_data: {data}')
 
-        # filter xcoms
-        if isinstance(task_ids, str):
-            filtered = tuple(xcom for xcom in data if xcom["key"] == key and xcom["task_id"] == task_ids)
+        filtered = filter(
+            lambda xcom: xcom["run_id"] == self.run_id and xcom["dag_id"] == dag_id and xcom["task_id"] == task_ids,
+            data
+        )
+        if map_indexes is not None:
+            if isinstance(map_indexes, int):
+                filtered = tuple(xcom for xcom in filtered if xcom["map_index"] == map_indexes)
+            else:
+                map_index_pos = {map_index: i for i, map_index in enumerate(map_indexes)}
+                filtered = [xcom for xcom in filtered if xcom["map_index"] in map_indexes]
+                filtered.sort(key=lambda x: map_index_pos[x["map_index"]])
         else:
-            filtered = tuple(xcom for xcom in data if xcom["key"] == key and xcom["task_id"] in task_ids)
+            filtered = sorted(filtered, key=lambda x: x["map_index"])
+
         if len(filtered) == 0:
             return default
-        if map_indexes is None:
+        elif len(data) == 1:
             return json.loads(filtered[0]["value"])
-        results = tuple((xcom["task_id"], xcom["map_index"], json.loads(xcom["value"])) for xcom in filtered if xcom["map_index"] in map_indexes)
-
-        if task_ids is None:
-            task_id_pos: dict[str, int] = defaultdict(int)
-        elif isinstance(task_ids, str):
-            task_id_pos = {task_ids: 0}
         else:
-            task_id_pos = {task_id: i for i, task_id in enumerate(task_ids)}
-        if map_indexes is None:
-            map_index_pos: dict[int, int] = defaultdict(int)
-        elif isinstance(map_indexes, int):
-            map_index_pos = {map_indexes: 0}
-        else:
-            map_index_pos = {map_index: i for i, map_index in enumerate(map_indexes)}
-
-        def _arg_pos(item: tuple[str, int, Any]) -> tuple[int, int]:
-            task_id, map_index, _ = item
-            return task_id_pos[task_id], map_index_pos[map_index]
-
-        results_sorted_by_arg_pos = sorted(results, key=_arg_pos)
-        return [value for _, _, value in results_sorted_by_arg_pos]
+            return tuple(json.loads(xcom["value"]) for xcom in filtered)
 
     @provide_session
     def get_num_running_task_instances(self, session: Session) -> int:
