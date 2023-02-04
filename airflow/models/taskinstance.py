@@ -2482,7 +2482,7 @@ class TaskInstance(Base, LoggingMixin):
 
         if len(filtered) == 0:
             return default
-        elif len(data) == 1:
+        elif len(filtered) == 1:
             return json.loads(filtered[0]["value"])
         else:
             return tuple(json.loads(xcom["value"]) for xcom in filtered)
