@@ -27,6 +27,7 @@ import collections
 import concurrent.futures
 import functools
 import json
+import logging
 import multiprocessing
 import subprocess
 import time
@@ -263,7 +264,7 @@ class AirflowKubernetesScheduler(LoggingMixin):
         self.scheduler_job_id = scheduler_job_id
         self.kube_watcher = self._make_kube_watcher()
         self.executor_pool = concurrent.futures.ThreadPoolExecutor()
-        self._kn_workers: Dict[str, str] | None = None  # map dag_id to knative worker urls
+        self._kn_workers: Dict[Tuple[str, str], str] | None = None  # map dag_id to knative worker urls
 
         # load kn service urls asynchronously
         self._worker_service_urls_future = self.executor_pool.submit(self._retrieve_kn_service_urls)
@@ -280,16 +281,20 @@ class AirflowKubernetesScheduler(LoggingMixin):
 
             self.log.info(f'kn service list returned')
             knative_services = json.loads(kn.stdout)
-            self.log.debug(f'knative_services: {knative_services}')
+            self.log.info(f'knative_services: {knative_services}')
 
             kn_workers = {}
             for service in knative_services['items']:
-                dag_id = service['metadata']['annotations']['dag_id']
-                worker_url = service['status']['url']
-                kn_workers[dag_id] = worker_url
+                try:
+                    dag_id = service['metadata']['annotations']['dag_id']
+                    task_id = service['metadata']['annotations']['task_id']
+                    worker_url = service['status']['url']
+                    kn_workers[(dag_id, task_id)] = worker_url
+                except KeyError as e:
+                    logging.info(e)
             return kn_workers
 
-    def get_worker_service_url(self, dag_id: str):
+    def get_worker_service_url(self, dag_id: str, task_id: str):
         # when this method is called for the first time the worker service urls should already have been
         # loaded asynchronously, so we just retrieve and store them
         if self._kn_workers is None:
@@ -298,12 +303,12 @@ class AirflowKubernetesScheduler(LoggingMixin):
             except TimeoutError:
                 self.log.error(f'Timeout while waiting for list of knative services')
                 return None
-        if dag_id not in self._kn_workers:
+        if (dag_id, task_id) not in self._kn_workers:
             # maybe worker for this dag was not yet available when we last checked, so try again
             self._worker_service_urls_future = self.executor_pool.submit(self._retrieve_kn_service_urls)
             self._kn_workers = self._worker_service_urls_future.result(timeout=20)
 
-        return self._kn_workers.get(dag_id)
+        return self._kn_workers.get((dag_id, task_id))
 
     def run_pod_async(self, pod: k8s.V1Pod, command, key, custom_annotations, **kwargs):
         """Runs POD asynchronously"""
@@ -311,20 +316,20 @@ class AirflowKubernetesScheduler(LoggingMixin):
 
         sanitized_pod = self.kube_client.api_client.sanitize_for_serialization(pod)
         json_pod = json.dumps(sanitized_pod, indent=2)
+        current_task_id = custom_annotations["task_id"]
+        dag_id = custom_annotations["dag_id"]
 
-        worker_service_url = self.get_worker_service_url(custom_annotations['dag_id'])
+        worker_service_url = self.get_worker_service_url(dag_id, current_task_id)
         if worker_service_url is None:
-            self.log.error(f'No knative worker available for dag {custom_annotations["dag_id"]}')
+            self.log.error(f'No knative worker available for task {current_task_id} in dag {dag_id}')
             return
 
         endpoint = worker_service_url + '/run_task_instance'
         self.log.info(f'Knative service airflow worker endpoint: {endpoint}')
 
-        self.log.info('Pod Creation Request: \n%s', json_pod)
+        self.log.debug('Pod Creation Request: \n%s', json_pod)
 
-        current_task_id = custom_annotations["task_id"]
         run_id = custom_annotations["run_id"]
-        dag_id = custom_annotations["dag_id"]
         current_task_execution_key = TaskExecutionKey(current_task_id, dag_id, run_id)
         try:
             dagbag = DagBag()
