@@ -20,13 +20,13 @@ sudo apt-get install helm
 
 # setup volumes
 kubectl create namespace airflow
-sudo mkdir -P /mnt/data{0..19}
+sudo mkdir -p /mnt/data{0..19}
 sudo chmod 777 /mnt/data*
 kubectl -n airflow apply -f configs/volumes.yaml
 
 # create resource files from airflow helm chart
 helm repo add apache-airflow https://airflow.apache.org
-helm template airflow apache-airflow/airflow --namespace airflow -f configs/values.yaml --debug > configs/airflow.yaml
+helm template airflow apache-airflow/airflow --version 1.7.0 --namespace airflow -f configs/values.yaml --debug > configs/airflow.yaml
 
 # create pull secret
 kubectl create secret -n airflow docker-registry regcred --docker-server=https://ghcr.io --docker-username="$CRED_USER" --docker-password="$CRED_TOKEN" --docker-email="$CRED_EMAIL"
