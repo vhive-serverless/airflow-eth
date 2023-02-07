@@ -1681,6 +1681,8 @@ config:
     # For Airflow 1.10, backward compatibility; moved to [logging] in 2.0
     colored_console_log: 'False'
     remote_logging: '{{- ternary "True" "False" .Values.elasticsearch.enabled }}'
+    max_active_tasks_per_dag: 1024
+    parallelism: 1024
   api:
     auth_backend: airflow.api.auth.backend.basic_auth
   logging:
