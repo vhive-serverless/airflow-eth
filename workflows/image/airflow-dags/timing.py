@@ -2,6 +2,8 @@ import logging
 from functools import wraps
 from time import time
 
+
+# by Jonathan Prieto-Cubides https://stackoverflow.com/questions/1622943/timeit-versus-timing-decorator
 def timing(f):
     @wraps(f)
     def wrap(*args, **kw):
