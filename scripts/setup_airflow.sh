@@ -3,8 +3,6 @@
 echo Please paste the credentials that are necessary to pull images.
 echo This script will create a Kubernetes Secret named "'regcred'" in the
 echo "'airflow'" namespace with your credentials.
-echo If you are pulling from a public repository, pass "'--public'" as the
-echo first argument of this script.
 echo
 echo Username:
 read CRED_USER
