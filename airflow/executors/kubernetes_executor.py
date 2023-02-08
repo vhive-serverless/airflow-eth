@@ -281,7 +281,7 @@ class AirflowKubernetesScheduler(LoggingMixin):
 
             self.log.info(f'kn service list returned')
             knative_services = json.loads(kn.stdout)
-            self.log.info(f'knative_services: {knative_services}')
+            self.log.debug(f'knative_services: {knative_services}')
 
             kn_workers = {}
             for service in knative_services['items']:

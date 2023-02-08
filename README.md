@@ -111,6 +111,7 @@ However, the below step-by-step guide should make it easier.
    docker push ghcr.io/jonamuen/airflow:latest
    docker push ghcr.io/jonamuen/airflow-worker:latest
    ```
+   Don't forget to adjust the registry.
 4. If you previously followed the setup guide above, run
    ```bash
    kubectl delete namespace airflow
@@ -120,16 +121,13 @@ However, the below step-by-step guide should make it easier.
 5. Modify `configs/values.yaml` to point to your new image, i.e. replace references
    to `ghcr.io/jonamuen/airflow` with the name of your `airflow` image.
    Also adjust the tag if needed.
-6. Write a YAML file for each function of your workflow. Use an existing one (e.g. from `workflows/avg_distributed`)
-   as a starting point. Make sure to refer to your own `airflow-worker` image that
-   you just built and pushed.
-   Also make sure that the `dag_id` and `task_id` annotations are set correctly.
-   The `dag_id` should be the name of the function with the `@dag` annotation in
-   your python workflow file. Likewise, `task_id` corresponds to the name of the
-   functions.
+6. Adjust the template for Knative services in [workflows/knative\_yaml\_builder/knative\_service\_template.yaml](workflows/knative_yaml_builder/knative_service_template.yaml) to point to your `airflow-worker` image.
+   Then run `scripts/build_knative_yamls.sh`.
+   This will generate Knative service definitions in [workflows/knative\_yamls](workflows/knative_yamls) for
+   all dags in `workflows/image/airflow-dags`.
 7. Run `scripts/setup_airflow.sh` (again).
-8. Run `kn service apply -n airflow -f <path to your YAML>` for each YAML file
-   you created for your dag.
+8. Run `scripts/deploy_workflow.sh dag_id`, replacing `dag_id` with the id of your dag.
+   Look in `workflows/knative\_yamls` if you are not sure what the id of your dag is.
 9. Airflow should now be up and running (check with `kubectl -n airflow get pods`)
    and a Knative service for each function of your workflow should be available,
    which can be verified with `kn service list -n airflow`.

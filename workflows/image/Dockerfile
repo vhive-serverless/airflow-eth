@@ -1,4 +1,5 @@
 FROM apache/airflow:2.4.3
+STOPSIGNAL SIGINT
 COPY airflow-dags /opt/airflow/dags
 COPY airflow /home/airflow/.local/lib/python3.7/site-packages/airflow
 COPY flask_worker_entrypoint.py /opt/airflow/flask_worker_entrypoint.py

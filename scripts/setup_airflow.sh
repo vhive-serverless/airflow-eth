@@ -11,6 +11,9 @@ read CRED_EMAIL
 echo Access token:
 read CRED_TOKEN
 
+# increase max open files
+ulimit -n 1000000
+
 # install helm
 curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
 sudo apt-get install apt-transport-https --yes
@@ -42,12 +45,12 @@ scheduler="$(kubectl -n airflow get pods | grep scheduler | awk '{print $1}')"
 kubectl -n airflow exec $scheduler -- mkdir /home/airflow/.kube
 kubectl -n airflow cp ~/.kube/config "$scheduler":/home/airflow/.kube/config
 
-# deploy the example workflows
-for yaml_file in workflows/avg_distributed/*.yaml; do
-	kn service apply -f "$yaml_file" -n airflow
-done
-
 # deploy workflow gateway
 # this is the service that lets users run workflows and returns the results
 kn service apply -f workflow-gateway/workflow-gateway.yaml -n airflow
 
+# deploy an example workflows
+./scripts/deploy_workflow.sh compute_avg_distributed
+
+# wait for webserver
+while [[ ! $(kubectl -n airflow get pods | grep webserver.*Running) ]]; do sleep 1; done
