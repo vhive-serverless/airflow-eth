@@ -322,6 +322,7 @@ class AirflowKubernetesScheduler(LoggingMixin):
         worker_service_url = self.get_worker_service_url(dag_id, current_task_id)
         if worker_service_url is None:
             self.log.error(f'No knative worker available for task {current_task_id} in dag {dag_id}')
+            self.watcher_queue.put(("airflow-worker-0", "airflow", State.FAILED, custom_annotations, 0))
             return
 
         endpoint = worker_service_url + '/run_task_instance'
