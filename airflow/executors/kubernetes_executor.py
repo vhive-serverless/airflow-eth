@@ -240,6 +240,25 @@ class KubernetesJobWatcher(multiprocessing.Process, LoggingMixin):
 
 TaskExecutionKey = collections.namedtuple("TaskExecutionKey", ("task_id", "dag_id", "run_id"))
 
+class Timer:
+    def __init__(self, func_name, annotations):
+        self._times = []
+        self._timestamp_annotations = []
+        self._func_name = func_name
+        self._annotations = annotations
+
+    def time(self, annotation: str):
+        self._times.append(time.time())
+        self._timestamp_annotations.append(annotation)
+
+    def get_log_line(self):
+        timing_info = {"function": self._func_name, "times": self._times, "timestamp_annotations": self._timestamp_annotations}
+        timing_info.update(self._annotations)
+        return f'TIMING: {json.dumps(timing_info)}'
+
+    def update_annotations(self, new_annotations):
+        self._annotations.update(new_annotations)
+
 class AirflowKubernetesScheduler(LoggingMixin):
     """Airflow Scheduler for Kubernetes"""
 
@@ -311,6 +330,8 @@ class AirflowKubernetesScheduler(LoggingMixin):
         return self._kn_workers.get((dag_id, task_id))
 
     def run_pod_async(self, pod: k8s.V1Pod, command, key, custom_annotations, **kwargs):
+        run_pod_timer = Timer("executor_run_pod_async", custom_annotations)
+        run_pod_timer.time("function_entry")
         """Runs POD asynchronously"""
         pod_mutation_hook(pod)
 
@@ -341,6 +362,8 @@ class AirflowKubernetesScheduler(LoggingMixin):
 
         def task(endpoint: str, args: List[str], watcher_queue, log):
             # collect xcom values from upstream tasks
+            timer = Timer("executor_async_task", custom_annotations)
+            timer.time("function_entry")
             try:
                 xcoms = []
                 for upstream_task_id in current_task.upstream_task_ids:
@@ -357,14 +380,19 @@ class AirflowKubernetesScheduler(LoggingMixin):
                         watcher_queue.put(("airflow-worker-0", "airflow", State.FAILED, custom_annotations, 0))
                         return
 
-                r = requests.post(endpoint, json={"args": args, "xcoms": xcoms, "annotations": custom_annotations})
                 log.info(f"Sending POST request to {endpoint} with arguments {args} and xcoms {xcoms}")
+                timer.time("before_post_request")
+                r = requests.post(endpoint, json={"args": args, "xcoms": xcoms, "annotations": custom_annotations})
+                timer.time("after_post_request")
                 log.info(f'Task run {custom_annotations["run_id"]} done with status code {r.status_code}. Data: {r.json()}')
                 data = r.json()
 
                 if r.status_code == 200:
                     # state 'None' indicates success in this context
                     watcher_queue.put(("airflow-worker-0", "airflow", None, custom_annotations, 0))
+                    timer.time("function_exit")
+                    self.log.info(timer.get_log_line())
+                    self.log.info(f'TIMING: {json.dumps(data["timing_info"])}')  # dump timing info from worker
                     return data["xcoms"]
                 else:
                     watcher_queue.put(("airflow-worker-0", "airflow", State.FAILED, custom_annotations, 0))
@@ -376,6 +404,8 @@ class AirflowKubernetesScheduler(LoggingMixin):
 
         self.xcoms[current_task_execution_key].append(self.executor_pool.submit(task, endpoint, command, self.watcher_queue, self.log))
         self.log.info(f'Submitted {current_task_execution_key} to executor pool')
+        run_pod_timer.time("function_exit")
+        self.log.info(run_pod_timer.get_log_line())
 
     def _make_kube_watcher(self) -> KubernetesJobWatcher:
         resource_version = ResourceVersion().resource_version

@@ -20,17 +20,15 @@ func getFinishedDagRun(request airflow.ApiGetDagRunRequest, c chan string) {
 	// poll airflow until DagRun is done
 	for {
 		dagrun, _, err := request.Execute()
-		fmt.Println(*dagrun.State)
 		if err != nil {
 			fmt.Println(err)
 		} else {
 			if *dagrun.State == airflow.DAGSTATE_SUCCESS || *dagrun.State == airflow.DAGSTATE_FAILED {
-				fmt.Println("Terminated")
 				c <- *dagrun.DagRunId.Get()
 				return
 			}
 		}
-		time.Sleep(1 * time.Second)
+		time.Sleep(500 * time.Millisecond)
 	}
 }
 
@@ -40,7 +38,6 @@ func startDagRun(apiBaseUrl string, dagId string) (airflow.DAGRun, error) {
 
 func startDagRunWithConf(apiBaseUrl string, dagId string, conf []byte) (airflow.DAGRun, error) {
 	endpointUrl := apiBaseUrl + "/dags/" + dagId + "/dagRuns"
-	fmt.Println(endpointUrl)
 	req, err := http.NewRequest("POST", endpointUrl, bytes.NewBuffer(conf))
 	req.Header.Add("Content-Type", "application/json")
 	if err != nil {
@@ -55,7 +52,6 @@ func startDagRunWithConf(apiBaseUrl string, dagId string, conf []byte) (airflow.
 	}
 	dagrun := airflow.DAGRun{}
 	body, err := io.ReadAll(resp.Body)
-	fmt.Println(string(body[:]))
 	if err != nil {
 		panic(err)
 	}
@@ -132,13 +128,11 @@ func runWorkflow(ginCtx *gin.Context, conf *airflow.Configuration, cli *airflow.
 		fmt.Println(err)
 		ginCtx.AbortWithStatus(http.StatusInternalServerError)
 		return
-	} else {
-		fmt.Println(dagrun)
 	}
 	c := make(chan string)
 
 	go getFinishedDagRun(cli.DAGRunApi.GetDagRun(ctx, *dagrun.DagId, *dagrun.DagRunId.Get()), c)
-	fmt.Println(<-c)
+	<-c
 
 	// find leaf task from which we retrieve the output
 	taskCollection, _, err := cli.DAGApi.GetTasks(ctx, dagId).Execute()
@@ -192,7 +186,10 @@ func main() {
 
 	router := gin.Default()
 	router.POST("/runWorkflow/:dagId", func(c *gin.Context) {
+		start := time.Now()
 		runWorkflow(c, conf, cli)
+		duration := time.Since(start)
+		fmt.Printf("Running %s took %s\n", c.Param("dagId"), duration)
 	})
 
 	router.Run(os.Args[1])
