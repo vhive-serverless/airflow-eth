@@ -1,0 +1,3 @@
+# builds an image of standard airflow, that includes workflows in ./workflows/image/airflow-dags
+FROM apache/airflow:2.4.3
+COPY workflows/image/airflow-dags /opt/airflow/dags

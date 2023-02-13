@@ -184,3 +184,10 @@ With the pod id, run
 ```bash
 kubectl -n airflow logs <pod_id>
 ```
+
+## Running benchmarks
+Run `./scripts/run_benchmarks` to run the benchmark workflows.
+It will delete the kubernetes namespace `airflow`, so make sure there is nothing important
+in it.
+The script will run the benchmark workflows against the modified version of Airflow with Knative
+and against an unmodified, stock version of Airflow.
