@@ -9,8 +9,6 @@ metadata:
 spec:
   template:
     spec:
-      imagePullSecrets:
-        - name: regcred
       containers:
         - image: "ghcr.io/jonamuen/airflow-worker:latest"
           imagePullPolicy: Always

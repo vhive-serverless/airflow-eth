@@ -44,11 +44,8 @@ cd airflow
 ./scripts/setup_airflow.sh
 ```
 
-Since the images are currently in a private registry, the script will ask
-for credentials to access that registry and create a Kubernetes Secret based
-on your credentials.
-After providing the credentials, the script will create the namespace
-`airflow` and deploy all resources to that namespace.
+The script will create the namespace `airflow` and deploy all resources to
+that namespace.
 
 After running the setup script, airflow should be up and running.
 Verify by running `kubectl -n airflow get pods`, the output should look similar

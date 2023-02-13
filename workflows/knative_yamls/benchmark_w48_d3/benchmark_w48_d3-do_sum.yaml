@@ -2,15 +2,13 @@ apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
   namespace: airflow
-  name: airflow-worker-benchmark-w24-d4-stage-03
+  name: airflow-worker-benchmark-w48-d3-do-sum
   annotations:
-    dag_id: benchmark_w24_d4
-    task_id: stage_03
+    dag_id: benchmark_w48_d3
+    task_id: do_sum
 spec:
   template:
     spec:
-      imagePullSecrets:
-        - name: regcred
       containers:
         - image: "ghcr.io/jonamuen/airflow-worker:latest"
           imagePullPolicy: Always

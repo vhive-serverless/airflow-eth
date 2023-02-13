@@ -1,16 +1,5 @@
 #!/bin/bash
 
-echo Please paste the credentials that are necessary to pull images.
-echo This script will create a Kubernetes Secret named "'regcred'" in the
-echo "'airflow'" namespace with your credentials.
-echo
-echo Username:
-read CRED_USER
-echo Email:
-read CRED_EMAIL
-echo Access token:
-read CRED_TOKEN
-
 # increase max open files
 ulimit -n 1000000
 
@@ -31,11 +20,6 @@ kubectl -n airflow apply -f configs/volumes.yaml
 helm repo add apache-airflow https://airflow.apache.org
 helm template airflow apache-airflow/airflow --version 1.7.0 --namespace airflow -f configs/values.yaml --debug > configs/airflow.yaml
 
-# create pull secret
-kubectl create secret -n airflow docker-registry regcred --docker-server=https://ghcr.io --docker-username="$CRED_USER" --docker-password="$CRED_TOKEN" --docker-email="$CRED_EMAIL"
-# patch resources with reference to pull secret
-python3 ./scripts/patch_values.py ./configs/airflow.yaml
-
 # deploy airflow
 kubectl -n airflow apply -f configs/airflow.yaml
 while [[ ! $(kubectl -n airflow get pods | grep scheduler.*Running) ]]; do sleep 1; done
@@ -49,7 +33,7 @@ kubectl -n airflow cp ~/.kube/config "$scheduler":/home/airflow/.kube/config
 # this is the service that lets users run workflows and returns the results
 kn service apply -f workflow-gateway/workflow-gateway.yaml -n airflow
 
-# deploy an example workflows
+# deploy an example workflow
 ./scripts/deploy_workflow.sh compute_avg_distributed
 
 # wait for webserver
