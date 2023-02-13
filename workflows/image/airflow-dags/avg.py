@@ -20,13 +20,11 @@ def timing(f):
     schedule_interval=None,
     start_date=pendulum.datetime(2021, 1, 1, tz="UTC"),
     catchup=False,
-    tags=['example'],
 )
 def compute_avg():
     @task
     @timing
     def extract(params=None):
-        # dummy data source
         logging.info(f"params: {params}")
         return params["data"]
 
@@ -38,7 +36,6 @@ def compute_avg():
     @task
     @timing
     def do_avg(data):
-        # dummy data sink
         return sum(data)/len(data)
 
     # specify data flow

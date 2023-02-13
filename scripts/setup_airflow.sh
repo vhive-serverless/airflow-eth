@@ -37,4 +37,4 @@ kn service apply -f workflow-gateway/workflow-gateway.yaml -n airflow
 ./scripts/deploy_workflow.sh compute_avg_distributed
 
 # wait for webserver
-while [[ ! $(kubectl -n airflow get pods | grep webserver.*Running) ]]; do sleep 1; done
+while [[ ! $(kubectl -n airflow get pods | grep webserver.*1/1.*Running) ]]; do sleep 1; done

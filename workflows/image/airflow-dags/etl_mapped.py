@@ -46,8 +46,7 @@ def etl_example_dynamic():
     @task
     @timing
     def load(data):
-        # dummy data sink
-        print(data)
+        return data
 
     # specify data flow
     converted = convert_currency.expand(x=extract())

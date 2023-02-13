@@ -20,7 +20,6 @@ def timing(f):
     schedule_interval=None,
     start_date=pendulum.datetime(2021, 1, 1, tz="UTC"),
     catchup=False,
-    tags=['example'],
 )
 def etl_example():
     @task
@@ -41,8 +40,7 @@ def etl_example():
     @task
     @timing
     def load(data):
-        # dummy data sink
-        print(data)
+        return data
 
     # specify data flow
     load(transform(extract()))

@@ -20,13 +20,11 @@ def timing(f):
     schedule_interval=None,
     start_date=pendulum.datetime(2021, 1, 1, tz="UTC"),
     catchup=False,
-    tags=['example'],
 )
 def compute_avg_distributed():
     @task
     @timing
     def extract(params=None):
-        # dummy data source
         logging.info(f"params: {params}")
         return params["data"]
 
@@ -43,7 +41,6 @@ def compute_avg_distributed():
     @task
     @timing
     def do_avg(total, count):
-        # dummy data sink
         if count != 0:
             return total / count
         else:

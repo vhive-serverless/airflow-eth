@@ -39,7 +39,7 @@ cd ..
 Now, the Kubernetes cluster and Knative should be ready.
 It is time to deploy this fork of airflow with the following commands:
 ```bash
-git clone git@github.com:eth-easl/airflow.git
+git clone --single-branch --branch integrate-knative --depth 1 git@github.com:eth-easl/airflow.git
 cd airflow
 ./scripts/setup_airflow.sh
 ```
@@ -122,7 +122,7 @@ However, the below step-by-step guide should make it easier.
    Then run `scripts/build_knative_yamls.sh`.
    This will generate Knative service definitions in [workflows/knative\_yamls](workflows/knative_yamls) for
    all dags in `workflows/image/airflow-dags`.
-7. Run `scripts/setup_airflow.sh` (again).
+7. Run `scripts/setup_airflow.sh`.
 8. Run `scripts/deploy_workflow.sh dag_id`, replacing `dag_id` with the id of your dag.
    Look in `workflows/knative\_yamls` if you are not sure what the id of your dag is.
 9. Airflow should now be up and running (check with `kubectl -n airflow get pods`)
