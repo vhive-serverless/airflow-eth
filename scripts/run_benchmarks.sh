@@ -2,6 +2,7 @@
 
 set -x
 kubectl delete namespace airflow
+./scripts/setup_airflow.sh
 
 # collect data from modified Airflow with Knative
 log_dir=./benchmarking_logs_"$(date +%s)"

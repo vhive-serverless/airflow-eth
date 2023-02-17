@@ -39,7 +39,7 @@ cd ..
 Now, the Kubernetes cluster and Knative should be ready.
 It is time to deploy this fork of airflow with the following commands:
 ```bash
-git clone --single-branch --branch integrate-knative --depth 1 git@github.com:eth-easl/airflow.git
+git clone --depth 1 git@github.com:eth-easl/airflow.git
 cd airflow
 ./scripts/setup_airflow.sh
 ```
