@@ -191,3 +191,13 @@ It will delete the kubernetes namespace `airflow`, so make sure there is nothing
 in it.
 The script will run the benchmark workflows against the modified version of Airflow with Knative
 and against an unmodified, stock version of Airflow.
+
+Existing benchmark data is in `benchmark_data.tar.gz`.
+Unpack it to `benchmark_data` to use the provided plotting and analysis scripts.
+E.g.
+```bash
+tar -xvzf benchmark_data.tar.gz
+python3 scripts/analyze_per_task_latency.py benchmark_data/benchmarking_logs_1676206749/log_scheduler_benchmark_w8_d3.txt
+python3 scripts/plot_e2e_latency.py
+python3 scripts/plot_throughput_width.py
+```
