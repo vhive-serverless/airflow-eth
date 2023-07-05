@@ -20,21 +20,21 @@ def timing(f):
     schedule_interval=None,
     start_date=pendulum.datetime(2021, 1, 1, tz="UTC"),
     catchup=False)
-def benchmark_w1_d2():
+def producer_consumer():
     @task
     @timing
-    def extract(params=None):
+    def producer(params=None):
         # dummy data source
         return params["data"]
 
     @task
     @timing
-    def do_sum(values):
+    def consumer(values):
         return (values)
 
     # specify data flow
-    intermediate_00 = extract()
-    do_sum(intermediate_00)
+    intermediate_00 = producer()
+    consumer(intermediate_00)
 
 # execute dag
-etl_dag = benchmark_w1_d2()
+etl_dag = producer_consumer()

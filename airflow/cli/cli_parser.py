@@ -289,6 +289,7 @@ ARG_MARK_SUCCESS = Arg(
 )
 ARG_VERBOSE = Arg(("-v", "--verbose"), help="Make logging output more verbose", action="store_true")
 ARG_LOCAL = Arg(("-l", "--local"), help="Run the task using the LocalExecutor", action="store_true")
+ARG_RXCOMM = Arg(("--rxcomm",), help="Our proposed method for communication", action="store_true")
 ARG_DONOT_PICKLE = Arg(
     ("-x", "--donot-pickle"),
     help=(
@@ -1292,6 +1293,7 @@ TASKS_COMMANDS = (
             ARG_INTERACTIVE,
             ARG_SHUT_DOWN_LOGGING,
             ARG_MAP_INDEX,
+            ARG_RXCOMM,
         ),
     ),
     ActionCommand(

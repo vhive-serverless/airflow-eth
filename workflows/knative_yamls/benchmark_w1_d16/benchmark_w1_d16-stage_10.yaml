@@ -10,7 +10,7 @@ spec:
   template:
     spec:
       containers:
-        - image: "ghcr.io/jonamuen/airflow-worker:latest"
+        - image: "nehalem90/airflow-worker:latest"
           imagePullPolicy: Always
           ports:
             - name: http1

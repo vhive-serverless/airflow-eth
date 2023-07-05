@@ -60,6 +60,9 @@ from airflow.utils.log.logging_mixin import LoggingMixin
 from airflow.utils.session import provide_session
 from airflow.utils.state import State
 
+# Ours
+from airflow.h2c_connector import remote_xcomm as rx
+
 # TaskInstance key, command, configuration, pod_template_file
 KubernetesJobType = Tuple[TaskInstanceKey, CommandType, Any, Optional[str]]
 
@@ -346,7 +349,7 @@ class AirflowKubernetesScheduler(LoggingMixin):
             self.watcher_queue.put(("airflow-worker-0", "airflow", State.FAILED, custom_annotations, 0))
             return
 
-        endpoint = worker_service_url + '/run_task_instance'
+        endpoint = worker_service_url
         self.log.info(f'Knative service airflow worker endpoint: {endpoint}')
 
         self.log.debug('Pod Creation Request: \n%s', json_pod)
@@ -380,19 +383,29 @@ class AirflowKubernetesScheduler(LoggingMixin):
                         watcher_queue.put(("airflow-worker-0", "airflow", State.FAILED, custom_annotations, 0))
                         return
 
-                log.info(f"Sending POST request to {endpoint} with arguments {args} and xcoms {xcoms}")
+                log.info(f"Sending POST request to {endpoint} with arguments {args}, xcoms {xcoms} and annotation {custom_annotations}")
                 timer.time("before_post_request")
-                r = requests.post(endpoint, json={"args": args, "xcoms": xcoms, "annotations": custom_annotations})
+                # r = requests.post(endpoint, json={"args": args, "xcoms": xcoms, "annotations": custom_annotations})
+                r = rx.requests(endpoint, data={
+                    "payloads": {
+                        "args": args,
+                        "xcoms": xcoms,
+                        "annotations": custom_annotations,
+                    }
+                })
                 timer.time("after_post_request")
+                
                 log.info(f'Task run {custom_annotations["run_id"]} done with status code {r.status_code}. Data: {r.json()}')
-                data = r.json()
+                # data = r.json()
+                data = r
+                logging.info(f'response: {data}')
 
-                if r.status_code == 200:
+                if r["status_code"] == "UNKNOWN":
                     # state 'None' indicates success in this context
                     watcher_queue.put(("airflow-worker-0", "airflow", None, custom_annotations, 0))
                     timer.time("function_exit")
                     self.log.info(timer.get_log_line())
-                    self.log.info(f'TIMING: {json.dumps(data["timing_info"])}')  # dump timing info from worker
+                    # self.log.info(f'TIMING: {json.dumps(data["timing_info"])}')  # dump timing info from worker
                     return data["xcoms"]
                 else:
                     watcher_queue.put(("airflow-worker-0", "airflow", State.FAILED, custom_annotations, 0))

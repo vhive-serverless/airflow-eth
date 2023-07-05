@@ -57,7 +57,7 @@ airflowVersion: "2.4.1"
 # Images
 images:
   airflow:
-    repository: ghcr.io/jonamuen/airflow
+    repository: nehalem90/airflow
     tag: latest
     pullPolicy: Always
   # To avoid images with user code, you can turn this to 'true' and

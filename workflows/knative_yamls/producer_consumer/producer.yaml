@@ -2,10 +2,10 @@ apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
   namespace: airflow
-  name: airflow-worker-benchmark-w1-d16-stage-13
+  name: airflow-worker-producer
   annotations:
-    dag_id: benchmark_w1_d16
-    task_id: stage_13
+    dag_id: producer_consumer
+    task_id: producer
 spec:
   template:
     spec:
@@ -13,8 +13,8 @@ spec:
         - image: "nehalem90/airflow-worker:latest"
           imagePullPolicy: Always
           ports:
-            - name: http1
-              containerPort: 50000
+            - name: h2c
+              containerPort: 8081
           env:
             - name: AIRFLOW__CORE__EXECUTOR
               value: LocalExecutor

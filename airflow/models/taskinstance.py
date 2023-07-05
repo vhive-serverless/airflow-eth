@@ -1454,6 +1454,7 @@ class TaskInstance(Base, LoggingMixin):
 
         self.task = self.task.prepare_for_execution()
         context = self.get_template_context(ignore_param_exceptions=False)
+        logging.info("Create context!")
         try:
             if not mark_success:
                 self._execute_task_with_callbacks(context, test_mode)
@@ -1751,10 +1752,16 @@ class TaskInstance(Base, LoggingMixin):
         )
         if not res:
             return
-
+        
+        logging.info(f'run_raw_task_1')
         self._run_raw_task(
             mark_success=mark_success, test_mode=test_mode, job_id=job_id, pool=pool, session=session
         )
+        logging.info(f'run_raw_task_2')
+        self._run_raw_task(
+            mark_success=mark_success, test_mode=test_mode, job_id=job_id, pool=pool, session=session
+        )
+        logging.info(f'run_raw_task_2_done')
 
     def dry_run(self) -> None:
         """Only Renders Templates for the TI"""

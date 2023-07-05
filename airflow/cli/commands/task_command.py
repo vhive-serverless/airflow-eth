@@ -59,6 +59,9 @@ from airflow.utils.net import get_hostname
 from airflow.utils.session import NEW_SESSION, create_session, provide_session
 from airflow.utils.state import DagRunState
 
+# Ours remote xcomm
+from airflow.h2c_connector import remote_xcomm as rx
+
 log = logging.getLogger(__name__)
 
 CreateIfNecessary = Union[Literal[False], Literal["db"], Literal["memory"]]
@@ -368,13 +371,20 @@ def task_run(args, dag=None):
         # Use DAG from parameter
         pass
     task = dag.get_task(task_id=args.task_id)
-    ti, _ = _get_ti(task, args.map_index, exec_date_or_run_id=args.execution_date_or_run_id, pool=args.pool)
+    ti, _ = _get_ti(task, args.map_index, exec_date_or_run_id=args.execution_date_or_run_id, pool=args.pool, create_if_necessary="memory")
     ti.init_run_context(raw=args.raw)
 
     hostname = get_hostname()
 
     log.info("Running %s on host %s", ti, hostname)
 
+    # Connect
+    if args.rxcomm:
+        rx.connect_ti_function(method=_rxcomm_run_task_by_selected_method, args=[args, dag, ti], port=8081)
+    else:
+        _rxcomm_run_task_by_selected_method(args, dag, ti)
+
+def _rxcomm_run_task_by_selected_method(args, dag, ti):
     if args.interactive:
         _run_task_by_selected_method(args, dag, ti)
     else:
