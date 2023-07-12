@@ -1,0 +1,15 @@
+syntax = "proto3";
+package H2C;
+
+service Connect {
+  rpc communicate (Call) returns (Response) {}
+}
+
+message Call { 
+    string payloads = 1; 
+}
+
+message Response {
+    string status = 2;
+    string payloads = 3;
+}

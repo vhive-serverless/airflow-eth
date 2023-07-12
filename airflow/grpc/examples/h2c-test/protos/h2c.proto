@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package H2C;
+
+service H2C {
+  rpc communicate (CommunicateMsg) returns (CommunicateMsg) {}
+}
+
+message CommunicateMsg {
+  string dag_id = 1;
+  string task_id = 2;
+  string data = 3;
+}

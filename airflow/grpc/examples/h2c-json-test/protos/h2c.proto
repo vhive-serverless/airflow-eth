@@ -1,0 +1,12 @@
+syntax = "proto3";
+package H2C;
+
+service H2C {
+  rpc communicate (JSONMessage) returns (JSONMessage) {}
+}
+
+message JSONMessage {
+  string dag_id = 1;
+  string task_id = 2;
+  string payloads = 3;
+}

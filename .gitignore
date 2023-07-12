@@ -228,3 +228,4 @@ licenses/LICENSES-ui.txt
 /out
 benchmark
 configs/airflow.yaml
+airflow/grpc/test/remote_xcomm/
