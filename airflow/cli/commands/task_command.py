@@ -60,7 +60,7 @@ from airflow.utils.session import NEW_SESSION, create_session, provide_session
 from airflow.utils.state import DagRunState
 
 # Ours remote xcomm
-from airflow.h2c_connector import remote_xcomm as rx
+from airflow.grpc.worker import gRPCWorker
 
 log = logging.getLogger(__name__)
 
@@ -379,12 +379,18 @@ def task_run(args, dag=None):
     log.info("Running %s on host %s", ti, hostname)
 
     # Connect
-    if args.rxcomm:
-        rx.connect_ti_function(method=_rxcomm_run_task_by_selected_method, args=[args, dag, ti], port=8081)
+    if args.grpc:
+        logging.info("gRPC open!")
+        _worker = gRPCWorker.serve(
+            ti=ti, dag=dag, args=args, port=8080,
+            exe_fn=__run_task_by_selected_method,
+        )
+        _worker.start()
     else:
-        _rxcomm_run_task_by_selected_method(args, dag, ti)
+        logging.info("gRPC not open!")
+        __run_task_by_selected_method(args, dag, ti)
 
-def _rxcomm_run_task_by_selected_method(args, dag, ti):
+def __run_task_by_selected_method(args, dag, ti):
     if args.interactive:
         _run_task_by_selected_method(args, dag, ti)
     else:

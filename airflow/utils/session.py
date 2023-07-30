@@ -24,6 +24,8 @@ from typing import Callable, Generator, TypeVar, cast
 from airflow import settings
 from airflow.typing_compat import ParamSpec
 
+import logging
+
 
 @contextlib.contextmanager
 def create_session() -> Generator[settings.SASession, None, None]:
@@ -65,9 +67,12 @@ def provide_session(func: Callable[PS, RT]) -> Callable[PS, RT]:
     will create one and close it for you.
     """
     session_args_idx = find_session_idx(func)
+    logging.info(f"session_args_idx > {session_args_idx}")
 
     @wraps(func)
     def wrapper(*args, **kwargs) -> RT:
+        logging.info(f"args > {args}")
+        logging.info(f"kwargs > {kwargs}")
         if "session" in kwargs or session_args_idx < len(args):
             return func(*args, **kwargs)
         else:

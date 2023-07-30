@@ -3,9 +3,9 @@ STOPSIGNAL SIGINT
 COPY airflow-dags /opt/airflow/dags
 COPY airflow /home/airflow/.local/lib/python3.7/site-packages/airflow
 # COPY flask_worker_entrypoint.py /opt/airflow/flask_worker_entrypoint.py
-# ENTRYPOINT ["flask", "--app", "/opt/airflow/flask_worker_entrypoint.py", "run", "--host", "0.0.0.0", "--port", "50000"]
-# EXPOSE 50000
+# ENTRYPOINT ["flask", "--app", "/opt/airflow/flask_worker_entrypoint.py", "run", "--host", "0.0.0.0", "--port", "8081"]
+# EXPOSE 8081
 
 RUN pip install grpcio grpcio-tools protobuf
-EXPOSE 8081
-ENTRYPOINT [ "airflow", "tasks", "run", "producer_consumer", "producer", "manual__2023-07-04T16:09:12.703199+00:00", "--raw", "--subdir", "DAGS_FOLDER/producer_comsumer.py", "--rxcomm" ]
+EXPOSE 8080
+ENTRYPOINT [ "airflow", "tasks", "run", "producer_consumer", "producer", "manual__2023-07-04T16:09:12.703199+00:00", "--raw", "--subdir", "DAGS_FOLDER/producer_comsumer.py", "--grpc" ]

@@ -1443,6 +1443,7 @@ class TaskInstance(Base, LoggingMixin):
         self.job_id = job_id
         self.hostname = get_hostname()
         self.pid = os.getpid()
+        logging.info(session)
         if not test_mode:
             session.merge(self)
             session.commit()
