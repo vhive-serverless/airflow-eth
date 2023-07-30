@@ -2,10 +2,10 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-import h2c_pb2 as h2c__pb2
+from .h2c_pb2 import Call, Response
 
 
-class H2CStub(object):
+class ConnectStub(object):
     """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
@@ -15,13 +15,13 @@ class H2CStub(object):
             channel: A grpc.Channel.
         """
         self.communicate = channel.unary_unary(
-                '/H2C.H2C/communicate',
-                request_serializer=h2c__pb2.JSONMessage.SerializeToString,
-                response_deserializer=h2c__pb2.JSONMessage.FromString,
+                '/H2C.Connect/communicate',
+                request_serializer=Call.SerializeToString,
+                response_deserializer=Response.FromString,
                 )
 
 
-class H2CServicer(object):
+class ConnectServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def communicate(self, request, context):
@@ -31,21 +31,21 @@ class H2CServicer(object):
         raise NotImplementedError('Method not implemented!')
 
 
-def add_H2CServicer_to_server(servicer, server):
+def add_ConnectServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'communicate': grpc.unary_unary_rpc_method_handler(
                     servicer.communicate,
-                    request_deserializer=h2c__pb2.JSONMessage.FromString,
-                    response_serializer=h2c__pb2.JSONMessage.SerializeToString,
+                    request_deserializer=Call.FromString,
+                    response_serializer=Response.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'H2C.H2C', rpc_method_handlers)
+            'H2C.Connect', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
 
 
  # This class is part of an EXPERIMENTAL API.
-class H2C(object):
+class Connect(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
@@ -59,8 +59,8 @@ class H2C(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/H2C.H2C/communicate',
-            h2c__pb2.JSONMessage.SerializeToString,
-            h2c__pb2.JSONMessage.FromString,
+        return grpc.experimental.unary_unary(request, target, '/H2C.Connect/communicate',
+            Call.SerializeToString,
+            Response.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

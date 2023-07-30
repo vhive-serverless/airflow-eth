@@ -61,7 +61,7 @@ from airflow.utils.session import provide_session
 from airflow.utils.state import State
 
 # Ours
-from airflow.grpc.connector import Connector as grpc_connector
+from airflow.h2c_connector import remote_xcomm as rx
 
 # TaskInstance key, command, configuration, pod_template_file
 KubernetesJobType = Tuple[TaskInstanceKey, CommandType, Any, Optional[str]]
@@ -349,7 +349,6 @@ class AirflowKubernetesScheduler(LoggingMixin):
             self.watcher_queue.put(("airflow-worker-0", "airflow", State.FAILED, custom_annotations, 0))
             return
 
-        # endpoint = worker_service_url + "/run_task_instance"
         endpoint = worker_service_url
         self.log.info(f'Knative service airflow worker endpoint: {endpoint}')
 
@@ -386,17 +385,17 @@ class AirflowKubernetesScheduler(LoggingMixin):
 
                 log.info(f"Sending POST request to {endpoint} with arguments {args}, xcoms {xcoms} and annotation {custom_annotations}")
                 timer.time("before_post_request")
-                # r = requests.post(endpoint, json={"args": args, "xcoms": xcoms, "annotations": custom_annotations}).json()
-                log.info(f"Call grpc_connector!")
-                r = grpc_connector.send( endpoint, payloads={
-                    "args": args,
-                    "xcoms": xcoms,
-                    "annotations": custom_annotations,
+                # r = requests.post(endpoint, json={"args": args, "xcoms": xcoms, "annotations": custom_annotations})
+                r = rx.requests(endpoint, data={
+                    "payloads": {
+                        "args": args,
+                        "xcoms": xcoms,
+                        "annotations": custom_annotations,
+                    }
                 })
-                log.info(f"After sending messages to worker via grpc_connector!")
                 timer.time("after_post_request")
-
-                log.info(f'Task run {custom_annotations["run_id"]} done with status code {r.status_code}. Data: {r}')
+                
+                log.info(f'Task run {custom_annotations["run_id"]} done with status code {r.status_code}. Data: {r.json()}')
                 # data = r.json()
                 data = r
                 logging.info(f'response: {data}')

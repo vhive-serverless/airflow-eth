@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\th2c.proto\x12\x03H2C\"@\n\x0bJSONMessage\x12\x0e\n\x06\x64\x61g_id\x18\x01 \x01(\t\x12\x0f\n\x07task_id\x18\x02 \x01(\t\x12\x10\n\x08payloads\x18\x03 \x01(\t2:\n\x03H2C\x12\x33\n\x0b\x63ommunicate\x12\x10.H2C.JSONMessage\x1a\x10.H2C.JSONMessage\"\x00\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\th2c.proto\x12\x03H2C\"\x18\n\x04\x43\x61ll\x12\x10\n\x08payloads\x18\x01 \x01(\t\"\x1c\n\x08Response\x12\x10\n\x08payloads\x18\x02 \x01(\t24\n\x07\x43onnect\x12)\n\x0b\x63ommunicate\x12\t.H2C.Call\x1a\r.H2C.Response\"\x00\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -21,8 +21,10 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'h2c_pb2', _globals)
 if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
-  _globals['_JSONMESSAGE']._serialized_start=18
-  _globals['_JSONMESSAGE']._serialized_end=82
-  _globals['_H2C']._serialized_start=84
-  _globals['_H2C']._serialized_end=142
+  _globals['_CALL']._serialized_start=18
+  _globals['_CALL']._serialized_end=42
+  _globals['_RESPONSE']._serialized_start=44
+  _globals['_RESPONSE']._serialized_end=72
+  _globals['_CONNECT']._serialized_start=74
+  _globals['_CONNECT']._serialized_end=126
 # @@protoc_insertion_point(module_scope)
