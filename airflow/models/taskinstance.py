@@ -132,6 +132,9 @@ from airflow.utils.sqlalchemy import (
 from airflow.utils.state import DagRunState, State, TaskInstanceState
 from airflow.utils.timeout import timeout
 
+### -------- Use Decorator (if don't use it, Comment out!) -------- ###
+from airflow.grpc.worker import wconn
+
 TR = TaskReschedule
 
 _CURRENT_CONTEXT: list[Context] = []
@@ -1418,12 +1421,14 @@ class TaskInstance(Base, LoggingMixin):
 
     @provide_session
     @Sentry.enrich_errors
+    ### -------- Use Decorator (if don't use it, Comment out!) -------- ###
+    @wconn.attach
     def _run_raw_task(
         self,
-        mark_success: bool = False,
+        mark_success: bool = False, #
         test_mode: bool = False,
-        job_id: str | None = None,
-        pool: str | None = None,
+        job_id: str | None = None, #
+        pool: str | None = None, #
         session: Session = NEW_SESSION,
     ) -> None:
         """
@@ -1443,7 +1448,6 @@ class TaskInstance(Base, LoggingMixin):
         self.job_id = job_id
         self.hostname = get_hostname()
         self.pid = os.getpid()
-        logging.info(session)
         if not test_mode:
             session.merge(self)
             session.commit()
@@ -1547,6 +1551,7 @@ class TaskInstance(Base, LoggingMixin):
                     session=session,
                 )
 
+    # @wconn.attach
     def _execute_task_with_callbacks(self, context, test_mode=False):
         """Prepare Task for Execution"""
         from airflow.models.renderedtifields import RenderedTaskInstanceFields

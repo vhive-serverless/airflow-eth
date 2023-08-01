@@ -396,7 +396,7 @@ class AirflowKubernetesScheduler(LoggingMixin):
                 log.info(f"After sending messages to worker via grpc_connector!")
                 timer.time("after_post_request")
 
-                log.info(f'Task run {custom_annotations["run_id"]} done with status code {r.status_code}. Data: {r}')
+                log.info(f'Task run {custom_annotations["run_id"]} done with status code {r["status_code"]}. Data: {r}')
                 # data = r.json()
                 data = r
                 logging.info(f'response: {data}')

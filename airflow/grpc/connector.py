@@ -66,21 +66,41 @@ class Connector(ConnectStub, LoggingMixin):
                 - response (dict-type): { key0:value0, key1:value1, ..., }
         '''
         # endpoint += ":8080"
+        response = None
         endpoint = Connector.get_worker_url(endpoint)
         logging.info(f"Sending Message to endopoint(3): {endpoint}")
         logging.info(f"Sending Message via 'Connector.send()': {payloads}")
-        try:
-            with grpc.insecure_channel(endpoint) as channel:
-                payloads = str(payloads)
-                stub = ConnectStub(channel)
+        # try:
+        #     with grpc.insecure_channel(endpoint) as channel:
+        #         payloads = str(payloads)
+        #         logging.info(f"Try to send Message to Worker(1), payloads={payloads}")
+        #         stub = ConnectStub(channel)
+        #         logging.info(f"Try to send Message to Worker(2), payloads={payloads}")
+        #         response = stub.communicate( Call( payloads=payloads ) )
+        #         logging.info(f"Response Message(1): {response}")
+        #         response = MessageToDict(response)
+        #         logging.info(f"Response Message(2): {response}")
+        #         response = eval(response['payloads'])
+        #         logging.info(f"Response Message(3): {response}")
+        #         # response = response['payloads']
+        # except Exception as e:
+        #     logging.error(e)
+        #     response = None
+        # return response
+
+        with grpc.insecure_channel(endpoint) as channel:
+            payloads = str(payloads)
+            stub = ConnectStub(channel)
+            try:
                 response = stub.communicate( Call( payloads=payloads ) )
+                logging.info(f"Response Message(1): {response}")
                 response = MessageToDict(response)
+                logging.info(f"Response Message(2): {response}")
                 response = eval(response['payloads'])
-                response = response['payloads']
-        except Exception as e:
-            logging.error(e)
-            response = None
-        return response
+                logging.info(f"Response Message(3): {response}")
+            except Exception as e:
+                logging.error(e)
+            return response
 
 
 class gRPCConnector(LoggingMixin):

@@ -59,8 +59,12 @@ from airflow.utils.net import get_hostname
 from airflow.utils.session import NEW_SESSION, create_session, provide_session
 from airflow.utils.state import DagRunState
 
-# Ours remote xcomm
-from airflow.grpc.worker import gRPCWorker
+
+### -------- Use @provide_session (if don't use it, Comment out!) -------- ###
+# from airflow.grpc.worker import WConnector2
+### -------- Use Decorator (if don't use it, Comment out!) -------- ###
+from airflow.grpc.worker import wconn
+# from airflow.grpc.worker import WConnector_
 
 log = logging.getLogger(__name__)
 
@@ -377,25 +381,43 @@ def task_run(args, dag=None):
     hostname = get_hostname()
 
     log.info("Running %s on host %s", ti, hostname)
+    log.info(f"Args >>> ms: {args.mark_success}, job: {args.job_id}, pool: {args.pool}, raw?: {args.raw}")
 
-    # Connect
     if args.grpc:
-        logging.info("gRPC open!")
-        _worker = gRPCWorker.serve(
-            ti=ti, dag=dag, args=args, port=8080,
-            exe_fn=__run_task_by_selected_method,
-        )
-        _worker.start()
+        log.info(f"gRPC!, TI: {ti}, interactive?:{args.interactive}")
+        if args.interactive:
+            log.info(f"(interactive) gRPC!")
+            ### -------- Use @provide_session (if don't use it, Comment out!) -------- ###
+            # wconn = WConnector2(ti=ti, args=args, port=8082)
+            # wconn.wait_for_termination()
+            ### -------- Use Decorator (if don't use it, Comment out!) -------- ###
+            wconn.add(ti, args)
+            wconn.wait_for_termination()
+            # wconn = WConnector_(
+            #     ti=ti, dag=dag, args=args, 
+            #     target_fn=_run_task_by_selected_method, port=8083)
+            # wconn.wait_for_termination()
+        else:
+            log.info(f"(non-interactive) gRPC!")
+            wconn.add(ti, args)
+            wconn.wait_for_termination()
+            # with _capture_task_logs(ti):
+            #     ### -------- Use @provide_session (if don't use it, Comment out!) -------- ###
+            #     # wconn = WConnector2(ti=ti, args=args, port=8082)
+            #     # wconn.wait_for_termination()
+            #     ### -------- Use Decorator (if don't use it, Comment out!) -------- ###
+            #     wconn.wait_for_termination()
+            # wconn = WConnector_(
+            #     ti=ti, dag=dag, args=args, 
+            #     target_fn=_run_task_by_selected_method, port=8083)
+            # wconn.wait_for_termination()
     else:
-        logging.info("gRPC not open!")
-        __run_task_by_selected_method(args, dag, ti)
-
-def __run_task_by_selected_method(args, dag, ti):
-    if args.interactive:
-        _run_task_by_selected_method(args, dag, ti)
-    else:
-        with _capture_task_logs(ti):
+        log.info(f"not gRPC!, TI: {ti}, interactive?:{args.interactive}")
+        if args.interactive:
             _run_task_by_selected_method(args, dag, ti)
+        else:
+            with _capture_task_logs(ti):
+                _run_task_by_selected_method(args, dag, ti)
 
 
 @cli_utils.action_cli(check_db=False)

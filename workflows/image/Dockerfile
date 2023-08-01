@@ -7,5 +7,5 @@ COPY airflow /home/airflow/.local/lib/python3.7/site-packages/airflow
 # EXPOSE 8081
 
 RUN pip install grpcio grpcio-tools protobuf
-EXPOSE 8080
+EXPOSE 8083
 ENTRYPOINT [ "airflow", "tasks", "run", "producer_consumer", "producer", "manual__2023-07-04T16:09:12.703199+00:00", "--raw", "--subdir", "DAGS_FOLDER/producer_comsumer.py", "--grpc" ]
