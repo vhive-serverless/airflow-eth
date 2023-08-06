@@ -60,6 +60,10 @@ from airflow.utils.log.logging_mixin import LoggingMixin
 from airflow.utils.session import provide_session
 from airflow.utils.state import State
 
+import grpc
+import pickle
+from airflow.grpc.remote_xcom.invoker import invoke_task
+
 # TaskInstance key, command, configuration, pod_template_file
 KubernetesJobType = Tuple[TaskInstanceKey, CommandType, Any, Optional[str]]
 
@@ -346,7 +350,8 @@ class AirflowKubernetesScheduler(LoggingMixin):
             self.watcher_queue.put(("airflow-worker-0", "airflow", State.FAILED, custom_annotations, 0))
             return
 
-        endpoint = worker_service_url + '/run_task_instance'
+        # endpoint = worker_service_url + '/run_task_instance'
+        endpoint = worker_service_url
         self.log.info(f'Knative service airflow worker endpoint: {endpoint}')
 
         self.log.debug('Pod Creation Request: \n%s', json_pod)
@@ -380,24 +385,26 @@ class AirflowKubernetesScheduler(LoggingMixin):
                         watcher_queue.put(("airflow-worker-0", "airflow", State.FAILED, custom_annotations, 0))
                         return
 
-                log.info(f"Sending POST request to {endpoint} with arguments {args} and xcoms {xcoms}")
+                log.info(f"Sending POST request to {endpoint} with arguments {args}, annotations {custom_annotations} and xcoms {xcoms}")
                 timer.time("before_post_request")
-                r = requests.post(endpoint, json={"args": args, "xcoms": xcoms, "annotations": custom_annotations})
-                timer.time("after_post_request")
-                log.info(f'Task run {custom_annotations["run_id"]} done with status code {r.status_code}. Data: {r.json()}')
-                data = r.json()
-
-                if r.status_code == 200:
+                # r = requests.post(endpoint, json={"args": args, "xcoms": xcoms, "annotations": custom_annotations})
+                try: 
+                    r = invoke_task(target=endpoint, args=args, annotations=custom_annotations, xcoms=xcoms)
+                    timer.time("after_post_request")
+                    data = pickle.loads(r.xcoms)
+                    log.info(f'Task run {custom_annotations["run_id"]} done with status code 200. Data: {data}')
                     # state 'None' indicates success in this context
                     watcher_queue.put(("airflow-worker-0", "airflow", None, custom_annotations, 0))
                     timer.time("function_exit")
                     self.log.info(timer.get_log_line())
-                    self.log.info(f'TIMING: {json.dumps(data["timing_info"])}')  # dump timing info from worker
                     return data["xcoms"]
-                else:
+                except grpc.RpcError as e:
+                    log.info(f"Airflow Worker {endpoint} Failed with error {e}")
                     watcher_queue.put(("airflow-worker-0", "airflow", State.FAILED, custom_annotations, 0))
                     return
+                
             except Exception as e:
+                log.info(f"Airflow Worker {endpoint} Failed with error {e}")
                 log.error(e)
                 watcher_queue.put(("airflow-worker-0", "airflow", State.FAILED, custom_annotations, 0))
                 return

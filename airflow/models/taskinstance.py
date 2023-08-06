@@ -132,6 +132,8 @@ from airflow.utils.sqlalchemy import (
 from airflow.utils.state import DagRunState, State, TaskInstanceState
 from airflow.utils.timeout import timeout
 
+import pickle
+
 TR = TaskReschedule
 
 _CURRENT_CONTEXT: list[Context] = []
@@ -2386,18 +2388,25 @@ class TaskInstance(Base, LoggingMixin):
             run_id=self.run_id,
             map_index=self.map_index,
         )
-        output = json.dumps({
+        # output = pickle.dumps({
+        #     "key": key,
+        #     "task_id": self.task_id,
+        #     "dag_id": self.dag_id,
+        #     "run_id": self.run_id,
+        #     "map_index": self.map_index,
+        #     "value": serialized_value,
+        # })
+        # write xcom data to file for flask to pick up
+        p = pathlib.Path('/home/airflow') / self.dag_id / self.task_id / self.run_id / str(self.map_index) / "output"
+        with open(p, 'ab') as f:
+            pickle.dump({
             "key": key,
             "task_id": self.task_id,
             "dag_id": self.dag_id,
             "run_id": self.run_id,
             "map_index": self.map_index,
-            "value": serialized_value.decode('UTF-8'),
-        })
-        # write xcom data to file for flask to pick up
-        p = pathlib.Path('/home/airflow') / self.dag_id / self.task_id / self.run_id / str(self.map_index) / "output"
-        with open(p, 'a') as f:
-            f.write(output + "\n")
+            "value": pickle.loads(serialized_value),
+        },f)
 
         XCom.set(
             key=key,
@@ -2462,8 +2471,8 @@ class TaskInstance(Base, LoggingMixin):
         # load xcom data from file provided by flask
         # filter on map_indexes, task_id and run_id
         base_path = pathlib.Path('/home/airflow') / self.dag_id / self.task_id / self.run_id / str(self.map_index)
-        with open(base_path / "input") as f:
-            data = json.load(f)
+        with open(base_path / "input", 'rb') as f:
+            data = pickle.load(f)
         logging.info(f'xcom_data: {data}')
 
         filtered = filter(
@@ -2483,9 +2492,9 @@ class TaskInstance(Base, LoggingMixin):
         if len(filtered) == 0:
             return default
         elif len(filtered) == 1:
-            return json.loads(filtered[0]["value"])
+            return filtered[0]["value"]
         else:
-            return tuple(json.loads(xcom["value"]) for xcom in filtered)
+            return tuple(xcom["value"] for xcom in filtered)
 
     @provide_session
     def get_num_running_task_instances(self, session: Session) -> int:

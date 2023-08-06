@@ -34,7 +34,7 @@ kubectl -n airflow cp ~/.kube/config "$scheduler":/home/airflow/.kube/config
 kn service apply -f workflow-gateway/workflow-gateway.yaml -n airflow
 
 # deploy an example workflow
-./scripts/deploy_workflow.sh compute_avg_distributed
+./scripts/deploy_workflow.sh benchmark_w1_d2
 
 # wait for webserver
 while [[ ! $(kubectl -n airflow get pods | grep webserver.*1/1.*Running) ]]; do sleep 1; done

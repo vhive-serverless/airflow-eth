@@ -10,11 +10,11 @@ spec:
   template:
     spec:
       containers:
-        - image: "ghcr.io/jonamuen/airflow-worker:latest"
+        - image: "nehalem90/airflow-worker:latest"
           imagePullPolicy: Always
           ports:
-            - name: http1
-              containerPort: 50000
+            - name: h2c
+              containerPort: 8081
           env:
             - name: AIRFLOW__CORE__EXECUTOR
               value: LocalExecutor
