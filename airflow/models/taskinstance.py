@@ -1309,6 +1309,7 @@ class TaskInstance(Base, LoggingMixin):
         hr_line_break = "\n" + ("-" * 80)  # Line break
 
         if not mark_success:
+            self.log.info(f"if not mark_success")
             # Firstly find non-runnable and non-requeueable tis.
             # Since mark_success is not set, we do nothing.
             non_requeueable_dep_context = DepContext(
@@ -1321,6 +1322,7 @@ class TaskInstance(Base, LoggingMixin):
             if not self.are_dependencies_met(
                 dep_context=non_requeueable_dep_context, session=session, verbose=True
             ):
+                self.log.info(f"if not dependencies met")
                 session.commit()
                 return False
 
@@ -1358,6 +1360,7 @@ class TaskInstance(Base, LoggingMixin):
                 )
                 self.log.warning(hr_line_break)
                 self.queued_dttm = timezone.utcnow()
+                self.log.info(f"if not are dependencies met")
                 session.merge(self)
                 session.commit()
                 return False

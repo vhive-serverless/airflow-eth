@@ -9,11 +9,12 @@ import argparse
 import logging
 import subprocess
 
+from airflow.utils.log.logging_mixin import LoggingMixin
 from protos import remote_xcom_pb2, remote_xcom_pb2_grpc
 
 log = logging.getLogger(__name__)
 
-class InvokeWorker(remote_xcom_pb2_grpc.TaskRunServicer):
+class InvokeWorker(remote_xcom_pb2_grpc.TaskRunServicer, LoggingMixin):
     def HandleTask(self, request, context):
         log.info(f"Received job !")
         args = request.args
@@ -34,9 +35,9 @@ class InvokeWorker(remote_xcom_pb2_grpc.TaskRunServicer):
         except FileNotFoundError:
             pass
         
-        p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        p.wait()
-        log.info(f"exitcode: {p.returncode}; stdout: {p.stdout.read()}; stderr: {p.stderr.read()}")
+        with subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True) as p:
+            for line in p.stdout:
+                log.info(f"exitcode: {p.returncode}; stdout: {line}; stderr: {p.stderr}")
         
         # find a way not to deserialize and serialize again just to put data inside a list
         try:
@@ -45,7 +46,7 @@ class InvokeWorker(remote_xcom_pb2_grpc.TaskRunServicer):
         except FileNotFoundError:
             xcoms = []
         response = pickle.dumps({"xcoms": xcoms})
-        log.info(f"response: {response}")
+        log.info(f"response: {xcoms}")
         return remote_xcom_pb2.task_reply(xcoms = response)
 
 

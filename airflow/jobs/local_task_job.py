@@ -84,17 +84,31 @@ class LocalTaskJob(BaseJob):
             self.handle_task_exit(128 + signum)
 
         signal.signal(signal.SIGTERM, signal_handler)
+        
+        self.log.info(f"mark_success: {self.mark_success}")
+        self.log.info(f"ignore_all_deps: {self.ignore_all_deps}")
+        self.log.info(f"ignore_depends_on_past: {self.ignore_depends_on_past}")
+        self.log.info(f"ignore_task_deps: {self.ignore_task_deps}")
+        self.log.info(f"ignore_ti_state: {self.ignore_ti_state}")
+        self.log.info(f"job_id: {self.id}")
+        self.log.info(f"pool: {self.pool}")
+        self.log.info(f"external_executor_id: {self.external_executor_id}")
 
-        if not self.task_instance.check_and_change_state_before_execution(
-            mark_success=self.mark_success,
-            ignore_all_deps=self.ignore_all_deps,
-            ignore_depends_on_past=self.ignore_depends_on_past,
-            ignore_task_deps=self.ignore_task_deps,
-            ignore_ti_state=self.ignore_ti_state,
-            job_id=self.id,
-            pool=self.pool,
-            external_executor_id=self.external_executor_id,
-        ):
+        try:
+            check_and_change_state_before_execution = self.task_instance.check_and_change_state_before_execution(
+                mark_success=self.mark_success,
+                ignore_all_deps=self.ignore_all_deps,
+                ignore_depends_on_past=self.ignore_depends_on_past,
+                ignore_task_deps=self.ignore_task_deps,
+                ignore_ti_state=self.ignore_ti_state,
+                job_id=self.id,
+                pool=self.pool,
+                external_executor_id=self.external_executor_id,
+            )
+        except Exception as e: 
+            raise AirflowException(f"Error checking state: {e}")
+        
+        if not check_and_change_state_before_execution:
             self.log.info("Task is not able to be run")
             return
 
