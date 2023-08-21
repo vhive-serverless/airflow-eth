@@ -5,16 +5,31 @@ import os
 import pathlib
 import grpc
 import pickle
-import argparse
 import logging
 import subprocess
+# from  argparse import ArgumentParser
+from airflow.utils.cli import get_dag
+from airflow.utils.dates import timezone
+from airflow.cli import cli_parser
+from airflow.cli.commands import task_command
 
-from airflow.utils.log.logging_mixin import LoggingMixin
-from protos import remote_xcom_pb2, remote_xcom_pb2_grpc
+from airflow.grpc.remote_xcom.protobufs import remote_xcom_pb2, remote_xcom_pb2_grpc
 
 log = logging.getLogger(__name__)
 
-class InvokeWorker(remote_xcom_pb2_grpc.TaskRunServicer, LoggingMixin):
+class InvokeWorker(remote_xcom_pb2_grpc.TaskRunServicer):
+    def __init__(self) -> None:
+        log.info(f"init_start")
+        super().__init__()
+        self.parser = cli_parser.get_parser()
+        dag_id = os.getenv("AIRFLOW_DAG_ID")
+        task_id = os.getenv("AIRFLOW_TASK_ID")
+        self.dag = get_dag(f"DAGS_FOLDER/{dag_id}.py", dag_id, include_examples=False)
+        self.task = self.dag.get_task(task_id=task_id)
+        self.ti, _ = task_command._get_ti_without_db(self.task, -1, create_if_necessary="memory")
+        self.ti.init_run_context(raw=False)
+        log.info(f"init_finish")
+        
     def HandleTask(self, request, context):
         log.info(f"Received job !")
         args = request.args
@@ -28,16 +43,18 @@ class InvokeWorker(remote_xcom_pb2_grpc.TaskRunServicer, LoggingMixin):
         input_path = base_path / "input"
         with open(input_path, "wb") as f:
             f.write(request.xcoms)
-        
         airflow_output_path = f"{base_path}/output"
         try:
             os.remove(airflow_output_path)
         except FileNotFoundError:
             pass
         
-        with subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True) as p:
-            for line in p.stdout:
-                log.info(f"exitcode: {p.returncode}; stdout: {line}; stderr: {p.stderr}")
+        args = self.parser.parse_args(args[1:])
+        self.ti.dag_run.run_id = args.execution_date_or_run_id
+        self.ti.dag_run.execution_date = timezone.parse(args.execution_date_or_run_id[8:])
+        self.ti.run_id = args.execution_date_or_run_id
+        log.info(f"parsed_args: {args}, dag: {self.dag}, task: {self.task}")
+        task_command.task_run(args, dag = self.dag, task=self.task, ti = self.ti)       
         
         # find a way not to deserialize and serialize again just to put data inside a list
         try:
@@ -50,17 +67,14 @@ class InvokeWorker(remote_xcom_pb2_grpc.TaskRunServicer, LoggingMixin):
         return remote_xcom_pb2.task_reply(xcoms = response)
 
 
-def serve(port: int):
+def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     remote_xcom_pb2_grpc.add_TaskRunServicer_to_server(InvokeWorker(),server)
-    server.add_insecure_port(f'[::]:{port}')
-    log.info(f"start worker server at port [{port}]")
+    server.add_insecure_port(f'[::]:{8081}')
+    log.info(f"start worker server at port [{8081}]")
     server.start()
     server.wait_for_termination()
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--port', type=int, default=8081)
-    args = parser.parse_args()
-    serve(args.port)
+    serve()

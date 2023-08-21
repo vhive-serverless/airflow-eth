@@ -20,6 +20,10 @@ spec:
               value: LocalExecutor
             - name: AIRFLOW_IS_K8S_EXECUTOR_POD
               value: "True"
+            - name: AIRFLOW_DAG_ID
+              value: benchmark_w1_d8
+            - name: AIRFLOW_TASK_ID
+              value: stage_05
             # Hard Coded Airflow Envs
             - name: AIRFLOW__CORE__FERNET_KEY
               valueFrom:

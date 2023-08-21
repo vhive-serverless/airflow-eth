@@ -16,8 +16,8 @@ docker push nehalem90/airflow:latest
 log_dir=./benchmark/"$(date +%s)"
 mkdir -p "$log_dir"
 GATEWAY_URL="$(kn service list -o json -n airflow | jq -r '.items[] | select(.metadata.name=="airflow-workflow-gateway").status.url')"
-curl -u admin:admin -X POST -H 'application/json' --data '{"input": [1,2,3,4]}' "$GATEWAY_URL"/runWorkflow/benchmark_w1_d2
-sleep 5
+curl -u admin:admin -X POST -H 'application/json' --data '{"input": [1,2,3,4]}' "$GATEWAY_URL"/runWorkflow/benchmark_w1_d2 &
+(sleep 15
 scheduler="$(kubectl -n airflow get pods | grep scheduler | awk '{print $1}')"
 kubectl -n airflow logs "$scheduler" scheduler | grep TIMING > "$log_dir"/log_timing.log
 kubectl -n airflow logs "$scheduler" scheduler > "$log_dir"/log_scheduler.log
@@ -26,4 +26,4 @@ kubectl -n airflow logs "$gateway" user-container > "$log_dir"/log_gateway.log
 producer="$(kubectl -n airflow get pods | grep extract | awk '{print $1}')"
 kubectl -n airflow logs "$producer" user-container > "$log_dir"/log_producer.log
 consumer="$(kubectl -n airflow get pods | grep do-sum | awk '{print $1}')"
-kubectl -n airflow logs "$consumer" user-container > "$log_dir"/log_consumer.log
+kubectl -n airflow logs "$consumer" user-container > "$log_dir"/log_consumer.log)

@@ -7,7 +7,7 @@ import pickle
 import argparse
 import logging
 
-from protos import remote_xcom_pb2, remote_xcom_pb2_grpc
+from airflow.grpc.remote_xcom.protobufs  import remote_xcom_pb2, remote_xcom_pb2_grpc
 
 log = logging.getLogger()
 

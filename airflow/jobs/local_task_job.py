@@ -83,18 +83,14 @@ class LocalTaskJob(BaseJob):
             self.task_runner.terminate()
             self.handle_task_exit(128 + signum)
 
-        signal.signal(signal.SIGTERM, signal_handler)
-        
-        self.log.info(f"mark_success: {self.mark_success}")
-        self.log.info(f"ignore_all_deps: {self.ignore_all_deps}")
-        self.log.info(f"ignore_depends_on_past: {self.ignore_depends_on_past}")
-        self.log.info(f"ignore_task_deps: {self.ignore_task_deps}")
-        self.log.info(f"ignore_ti_state: {self.ignore_ti_state}")
-        self.log.info(f"job_id: {self.id}")
-        self.log.info(f"pool: {self.pool}")
-        self.log.info(f"external_executor_id: {self.external_executor_id}")
+        # signal.signal(signal.SIGTERM, signal_handler)
 
         try:
+            self.log.info(f"refresh dagrun from db")
+            self.task_instance.dag_run.start_date = self.start_date
+            self.task_instance.dag_run.refresh_from_db()
+            self.task_instance.refresh_from_db()
+            self.log.info(f"check and change state before exection")
             check_and_change_state_before_execution = self.task_instance.check_and_change_state_before_execution(
                 mark_success=self.mark_success,
                 ignore_all_deps=self.ignore_all_deps,

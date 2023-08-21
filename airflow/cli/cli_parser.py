@@ -1320,32 +1320,6 @@ TASKS_COMMANDS = (
         func=lazy_load_command('airflow.cli.commands.task_command.task_states_for_dag_run'),
         args=(ARG_DAG_ID, ARG_EXECUTION_DATE_OR_RUN_ID, ARG_OUTPUT, ARG_VERBOSE),
     ),
-    ActionCommand(
-        name='ready',
-        help="make a task instance ready",
-        func=lazy_load_command('airflow.cli.commands.task_command.task_run'),
-        args=(
-            ARG_DAG_ID,
-            ARG_TASK_ID,
-            ARG_EXECUTION_DATE_OR_RUN_ID,
-            ARG_SUBDIR,
-            ARG_MARK_SUCCESS,
-            ARG_FORCE,
-            ARG_POOL,
-            ARG_CFG_PATH,
-            ARG_LOCAL,
-            ARG_RAW,
-            ARG_IGNORE_ALL_DEPENDENCIES,
-            ARG_IGNORE_DEPENDENCIES,
-            ARG_IGNORE_DEPENDS_ON_PAST,
-            ARG_SHIP_DAG,
-            ARG_PICKLE,
-            ARG_JOB_ID,
-            ARG_INTERACTIVE,
-            ARG_SHUT_DOWN_LOGGING,
-            ARG_MAP_INDEX,
-        ),
-    ),
 )
 POOLS_COMMANDS = (
     ActionCommand(

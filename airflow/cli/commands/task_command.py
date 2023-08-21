@@ -215,6 +215,7 @@ def _get_ti_without_db(
         exec_date_or_run_id=exec_date_or_run_id,
         create_if_necessary=create_if_necessary,
     )
+    log.info(f"execution date or run id: {exec_date_or_run_id}")
     
     log.info(f"run_type: {dag_run.run_type}")
 
@@ -361,93 +362,7 @@ def _capture_task_logs(ti: TaskInstance) -> Generator[None, None, None]:
 
 
 @cli_utils.action_cli(check_db=False)
-def task_run(args, dag=None):
-    """Run a single task instance.
-
-    Note that there must be at least one DagRun for this to start,
-    i.e. it must have been scheduled and/or triggered previously.
-    Alternatively, if you just need to run it for testing then use
-    "airflow tasks test ..." command instead.
-    """
-    # # Load custom airflow config
-
-    # if args.local and args.raw:
-    #     raise AirflowException(
-    #         "Option --raw and --local are mutually exclusive. "
-    #         "Please remove one option to execute the command."
-    #     )
-
-    # if args.raw:
-    #     unsupported_options = [o for o in RAW_TASK_UNSUPPORTED_OPTION if getattr(args, o)]
-
-    #     if unsupported_options:
-    #         unsupported_raw_task_flags = ', '.join(f'--{o}' for o in RAW_TASK_UNSUPPORTED_OPTION)
-    #         unsupported_flags = ', '.join(f'--{o}' for o in unsupported_options)
-    #         raise AirflowException(
-    #             "Option --raw does not work with some of the other options on this command. "
-    #             "You can't use --raw option and the following options: "
-    #             f"{unsupported_raw_task_flags}. "
-    #             f"You provided the option {unsupported_flags}. "
-    #             "Delete it to execute the command."
-    #         )
-    # if dag and args.pickle:
-    #     raise AirflowException("You cannot use the --pickle option when using DAG.cli() method.")
-    # if args.cfg_path:
-    #     with open(args.cfg_path) as conf_file:
-    #         conf_dict = json.load(conf_file)
-
-    #     if os.path.exists(args.cfg_path):
-    #         os.remove(args.cfg_path)
-
-    #     conf.read_dict(conf_dict, source=args.cfg_path)
-    #     settings.configure_vars()
-
-    # settings.MASK_SECRETS_IN_LOGS = True
-
-    # # IMPORTANT, have to re-configure ORM with the NullPool, otherwise, each "run" command may leave
-    # # behind multiple open sleeping connections while heartbeating, which could
-    # # easily exceed the database connection limit when
-    # # processing hundreds of simultaneous tasks.
-    # settings.reconfigure_orm(disable_connection_pool=True)
-
-    # if args.pickle:
-    #     print(f'Loading pickle id: {args.pickle}')
-    #     dag = get_dag_by_pickle(args.pickle)
-    # elif not dag:
-    #     dag = get_dag(args.subdir, args.dag_id, include_examples=False)
-    #     log.info(f"get dag: {dag}")
-    # else:
-    #     # Use DAG from parameter
-    #     pass
-    # task = dag.get_task(task_id=args.task_id)
-    # log.info(f"get task: {task}")
-    # log.info(f"get ti: {task}, map_index: {args.map_index}, exec_date_or_run_id {args.execution_date_or_run_id}, pool: {args.pool}")
-    # ti, _ = _get_ti(task, args.map_index, exec_date_or_run_id=args.execution_date_or_run_id, pool=args.pool)
-    # log.info(f"got ti:{ti}")
-    # ti.init_run_context(raw=args.raw)
-
-    # hostname = get_hostname()
-    # # grpc.serve(args, dag, ti)
-    # log.info("Running %s on host %s", ti, hostname)
-
-    args, dag, ti = task_ready(args, dag)
-
-    ti.init_run_context(raw=args.raw)
-
-    hostname = get_hostname()
-    # grpc.serve(args, dag, ti)
-    log.info("Running %s on host %s", ti, hostname)
-    log.info(f"args: {args}")
-    
-    if args.interactive:
-        _run_task_by_selected_method(args, dag, ti)
-    else:
-        with _capture_task_logs(ti):
-            _run_task_by_selected_method(args, dag, ti)
-
-
-@cli_utils.action_cli(check_db=False)
-def task_ready(args, dag=None):
+def task_run(args, dag=None, task=None, ti=None):
     """Run a single task instance.
 
     Note that there must be at least one DagRun for this to start,
@@ -505,14 +420,25 @@ def task_ready(args, dag=None):
     else:
         # Use DAG from parameter
         pass
-    task = dag.get_task(task_id=args.task_id)
-    log.info(f"get task: {task}")
-    log.info(f"get ti: {task}, map_index: {args.map_index}, exec_date_or_run_id {args.execution_date_or_run_id}, pool: {args.pool}")
-    ti, _ = _get_ti_without_db(task, args.map_index, exec_date_or_run_id=args.execution_date_or_run_id, pool=args.pool)
-    # ti, _ = _get_ti(task, args.map_index, exec_date_or_run_id=args.execution_date_or_run_id, pool=args.pool)
-    log.info(f"got ti:{ti}")
+    if not task:
+        task = dag.get_task(task_id=args.task_id)
+        log.info(f"get task: {task}")
+        
+    log.info(f"got task: {task}, map_index: {args.map_index}, exec_date_or_run_id {args.execution_date_or_run_id}, pool: {args.pool}")
+    if not ti:
+        ti, _ = _get_ti(task, args.map_index, exec_date_or_run_id=args.execution_date_or_run_id, pool=args.pool)
+        ti.init_run_context(raw=args.raw)
+        log.info(f"got ti:{ti}")
     
-    return args, dag, ti
+    hostname = get_hostname()
+    log.info("Running %s on host %s", ti, hostname)
+    log.info(f"args: {args}")
+    
+    if args.interactive:
+        _run_task_by_selected_method(args, dag, ti)
+    else:
+        with _capture_task_logs(ti):
+            _run_task_by_selected_method(args, dag, ti)
 
 
 @cli_utils.action_cli(check_db=False)
