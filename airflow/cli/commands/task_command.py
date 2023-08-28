@@ -58,6 +58,7 @@ from airflow.utils.log.secrets_masker import RedactedIO
 from airflow.utils.net import get_hostname
 from airflow.utils.session import NEW_SESSION, create_session, provide_session
 from airflow.utils.state import DagRunState
+from airflow.utils.types import DagRunType
 
 log = logging.getLogger(__name__)
 
@@ -160,6 +161,7 @@ def _get_ti(
         create_if_necessary=create_if_necessary,
         session=session,
     )
+    log.info(f"run_type: {dag_run.run_type}")
 
     ti_or_none = dag_run.get_task_instance(task.task_id, map_index=map_index, session=session)
     if ti_or_none is None:
@@ -171,8 +173,55 @@ def _get_ti(
         # TODO: Validate map_index is in range?
         ti = TaskInstance(task, run_id=dag_run.run_id, map_index=map_index)
         ti.dag_run = dag_run
+        log.info(f"run_type: {ti.dag_run.run_type}")
     else:
         ti = ti_or_none
+    ti.refresh_from_task(task, pool_override=pool)
+    return ti, dr_created
+
+
+def _get_ti_without_db(
+    task: BaseOperator,
+    map_index: int,
+    *,
+    exec_date_or_run_id: str | None = None,
+    pool: str | None = None,
+    create_if_necessary: CreateIfNecessary = False,
+    ) -> tuple[TaskInstance, bool]:
+    
+    
+    def _get_dag_run_without_db(
+        *,
+        dag: DAG,
+        create_if_necessary: CreateIfNecessary,
+        exec_date_or_run_id: str | None = None,
+        ) -> tuple[DagRun, bool]:
+        
+        dag_run_execution_date = timezone.utcnow()
+        dag_run = DagRun(dag.dag_id, run_id=exec_date_or_run_id, execution_date=dag_run_execution_date)
+        dag_run.run_type=DagRunType.MANUAL
+        return dag_run, True
+    
+    
+    if not exec_date_or_run_id and not create_if_necessary:
+        raise ValueError("Must provide `exec_date_or_run_id` if not `create_if_necessary`.")
+    if task.is_mapped:
+        if map_index < 0:
+            raise RuntimeError("No map_index passed to mapped task")
+    elif map_index >= 0:
+        raise RuntimeError("map_index passed to non-mapped task")
+    dag_run, dr_created = _get_dag_run_without_db(
+        dag=task.dag,
+        exec_date_or_run_id=exec_date_or_run_id,
+        create_if_necessary=create_if_necessary,
+    )
+    log.info(f"execution date or run id: {exec_date_or_run_id}")
+    
+    log.info(f"run_type: {dag_run.run_type}")
+
+    ti = TaskInstance(task, run_id=dag_run.run_id, map_index=map_index)
+    ti.dag_run = dag_run
+
     ti.refresh_from_task(task, pool_override=pool)
     return ti, dr_created
 
@@ -186,10 +235,13 @@ def _run_task_by_selected_method(args, dag: DAG, ti: TaskInstance) -> None:
     - by executor
     """
     if args.local:
+        log.info(f"run_local_task_job")
         _run_task_by_local_task_job(args, ti)
     elif args.raw:
+        log.info(f"run_raw_task_job")
         _run_raw_task(args, ti)
     else:
+        log.info(f"run_executor_task_job")
         _run_task_by_executor(args, dag, ti)
 
 
@@ -310,7 +362,7 @@ def _capture_task_logs(ti: TaskInstance) -> Generator[None, None, None]:
 
 
 @cli_utils.action_cli(check_db=False)
-def task_run(args, dag=None):
+def task_run(args, dag=None, task=None, ti=None):
     """Run a single task instance.
 
     Note that there must be at least one DagRun for this to start,
@@ -364,17 +416,24 @@ def task_run(args, dag=None):
         dag = get_dag_by_pickle(args.pickle)
     elif not dag:
         dag = get_dag(args.subdir, args.dag_id, include_examples=False)
+        log.info(f"get dag: {dag}")
     else:
         # Use DAG from parameter
         pass
-    task = dag.get_task(task_id=args.task_id)
-    ti, _ = _get_ti(task, args.map_index, exec_date_or_run_id=args.execution_date_or_run_id, pool=args.pool)
-    ti.init_run_context(raw=args.raw)
-
+    if not task:
+        task = dag.get_task(task_id=args.task_id)
+        log.info(f"get task: {task}")
+        
+    log.info(f"got task: {task}, map_index: {args.map_index}, exec_date_or_run_id {args.execution_date_or_run_id}, pool: {args.pool}")
+    if not ti:
+        ti, _ = _get_ti(task, args.map_index, exec_date_or_run_id=args.execution_date_or_run_id, pool=args.pool)
+        ti.init_run_context(raw=args.raw)
+        log.info(f"got ti:{ti}")
+    
     hostname = get_hostname()
-
     log.info("Running %s on host %s", ti, hostname)
-
+    log.info(f"args: {args}")
+    
     if args.interactive:
         _run_task_by_selected_method(args, dag, ti)
     else:

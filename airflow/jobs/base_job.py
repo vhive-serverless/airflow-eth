@@ -244,6 +244,7 @@ class BaseJob(Base, LoggingMixin):
             make_transient(self)
 
             try:
+                self.log.info(f"trying to execute")
                 self._execute()
                 # In case of max runs or max duration
                 self.state = State.SUCCESS

@@ -83,18 +83,28 @@ class LocalTaskJob(BaseJob):
             self.task_runner.terminate()
             self.handle_task_exit(128 + signum)
 
-        signal.signal(signal.SIGTERM, signal_handler)
+        # signal.signal(signal.SIGTERM, signal_handler)
 
-        if not self.task_instance.check_and_change_state_before_execution(
-            mark_success=self.mark_success,
-            ignore_all_deps=self.ignore_all_deps,
-            ignore_depends_on_past=self.ignore_depends_on_past,
-            ignore_task_deps=self.ignore_task_deps,
-            ignore_ti_state=self.ignore_ti_state,
-            job_id=self.id,
-            pool=self.pool,
-            external_executor_id=self.external_executor_id,
-        ):
+        try:
+            self.log.info(f"refresh dagrun from db")
+            self.task_instance.dag_run.start_date = self.start_date
+            self.task_instance.dag_run.refresh_from_db()
+            self.task_instance.refresh_from_db()
+            self.log.info(f"check and change state before exection")
+            check_and_change_state_before_execution = self.task_instance.check_and_change_state_before_execution(
+                mark_success=self.mark_success,
+                ignore_all_deps=self.ignore_all_deps,
+                ignore_depends_on_past=self.ignore_depends_on_past,
+                ignore_task_deps=self.ignore_task_deps,
+                ignore_ti_state=self.ignore_ti_state,
+                job_id=self.id,
+                pool=self.pool,
+                external_executor_id=self.external_executor_id,
+            )
+        except Exception as e: 
+            raise AirflowException(f"Error checking state: {e}")
+        
+        if not check_and_change_state_before_execution:
             self.log.info("Task is not able to be run")
             return
 
@@ -157,10 +167,6 @@ class LocalTaskJob(BaseJob):
         # Without setting this, heartbeat may get us
         self.terminating = True
         self.log.info("Task exited with return code %s", return_code)
-
-        if not self.task_instance.test_mode:
-            if conf.getboolean('scheduler', 'schedule_after_task_execution', fallback=True):
-                self.task_instance.schedule_downstream_tasks()
 
     def on_kill(self):
         self.task_runner.terminate()
